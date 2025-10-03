@@ -214,3 +214,7 @@ For support, email your-email@example.com or create an issue on GitHub.
 ---
 
 **Made with ❤️ by CodeCraft Team**
+=======
+# CodeCraft--Crafting-Tech-Stacks-from-your-ideas
+Final Year Project 
+>>>>>>> ff0e4a16fecc29dab1d87ec33086ba7c86bc6414
