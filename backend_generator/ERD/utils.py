@@ -265,8 +265,8 @@ class JSONSchemaGenerator:
                     "properties": {
                         "name": {
                             "type": "string",
-                            "pattern": "^[A-Z][a-zA-Z0-9]*$",
-                            "description": "Entity name in PascalCase"
+                            "minLength": 1,
+                            "description": "Entity name (any valid format)"
                         },
                         "attributes": {
                             "type": "array",
@@ -287,8 +287,8 @@ class JSONSchemaGenerator:
                     "properties": {
                         "name": {
                             "type": "string",
-                            "pattern": "^[a-z][a-z0-9_]*$",
-                            "description": "Attribute name in snake_case"
+                            "minLength": 1,
+                            "description": "Attribute name (any valid format)"
                         },
                         "data_type": {
                             "enum": ["string", "integer", "float", "boolean", "date", "datetime", "text", "json", "uuid"],
