@@ -39,7 +39,9 @@ class ERDProcessingService:
             erd_schema = self.converter.convert_to_erd_schema(parsed_data)
             
             # Validate the schema
-            validation_errors = self.validator.validate_erd_schema(erd_schema.dict())
+            # Use json() to properly serialize enums as strings
+            schema_dict = json.loads(erd_schema.json())
+            validation_errors = self.validator.validate_erd_schema(schema_dict)
             if validation_errors:
                 return ERDProcessingResponse(
                     success=False,
@@ -76,6 +78,6 @@ class ERDProcessingService:
             "erd_schema": erd_schema.dict(),
             "database_schema": self.convert_to_database_schema(erd_schema),
             "fastapi_schema": self.convert_to_fastapi_schema(erd_schema),
-            "validation": self.validator.validate_erd_schema(erd_schema.dict())
+            "validation": self.validator.validate_erd_schema(json.loads(erd_schema.json()))
         }
 

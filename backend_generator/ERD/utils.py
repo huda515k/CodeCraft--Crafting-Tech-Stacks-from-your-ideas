@@ -291,7 +291,11 @@ class JSONSchemaGenerator:
                             "description": "Attribute name (any valid format)"
                         },
                         "data_type": {
-                            "enum": ["string", "integer", "float", "boolean", "date", "datetime", "text", "json", "uuid"],
+                            "enum": [
+                                "string", "integer", "float", "boolean", "date", "datetime", "text", "json", "uuid",
+                                "decimal", "enum", "array", "time", "blob", "binary", "char", "varchar", "longtext",
+                                "tinyint", "smallint", "bigint", "double", "real", "timestamp", "year", "set"
+                            ],
                             "description": "Data type of the attribute"
                         },
                         "is_primary_key": {

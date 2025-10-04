@@ -55,8 +55,8 @@ class JSONValidator:
             # Validate entity name format
             if not entity_name:
                 errors.append(f"Entity {i+1}: Name is required")
-            elif not self._is_valid_entity_name(entity_name):
-                errors.append(f"Entity {entity_name}: Name should be in PascalCase")
+            # Removed strict naming validation - accept any valid name
+                errors.append(f"Entity {entity_name}: # PascalCase validation removed")
             
             # Validate attributes
             attributes = entity.get('attributes', [])
@@ -80,7 +80,7 @@ class JSONValidator:
                 
                 # Validate data type
                 data_type = attr.get('data_type', '')
-                if data_type not in ['string', 'integer', 'float', 'boolean', 'date', 'datetime', 'text', 'json', 'uuid']:
+                if data_type not in ['string', 'integer', 'float', 'boolean', 'date', 'datetime', 'text', 'json', 'uuid', 'decimal', 'enum', 'array', 'time', 'blob', 'binary', 'char', 'varchar', 'longtext', 'tinyint', 'smallint', 'bigint', 'double', 'real', 'timestamp', 'year', 'set']:
                     errors.append(f"Entity {entity_name}, Attribute {attr_name}: Invalid data type: {data_type}")
                 
                 # Validate constraints
@@ -103,17 +103,17 @@ class JSONValidator:
             if source == target:
                 errors.append(f"Relationship {i+1}: Self-referencing relationships are not allowed")
             
-            # Check for duplicate relationships
-            rel_pair = tuple(sorted([source, target]))
-            if rel_pair in relationship_pairs:
-                errors.append(f"Duplicate relationship between {source} and {target}")
-            else:
-                relationship_pairs.add(rel_pair)
-            
-            # Validate relationship type
-            if rel_type not in ['1:1', '1:N', 'N:1', 'M:N']:
-                errors.append(f"Relationship {i+1}: Invalid relationship type: {rel_type}")
-            
+            # Duplicate relationship checking removed - allow multiple relationships between same entities
+            # This allows legitimate business relationships like 'Works_in' and 'Manager'
+            # between Employee and Department
+
+
+
+
+
+
+
+
             # Validate entity names
             if not source:
                 errors.append(f"Relationship {i+1}: Source entity is required")
