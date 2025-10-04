@@ -2,7 +2,10 @@
 
 **Crafting Tech Stacks from your Ideas**
 
-CodeCraft is an intelligent AI agent that converts Entity-Relationship Diagrams (ERDs) into complete, production-ready Node.js backends using LangGraph and Gemini Flash AI.
+CodeCraft is an intelligent AI agent that:
+converts Entity-Relationship Diagrams (ERDs) into complete, production-ready Node.js backends using LangGraph and Gemini Flash AI.
+analyses prompts and generates backend.
+generates backend from an already developed frontend.
 
 ## ✨ Features
 
@@ -196,10 +199,6 @@ uvicorn main:app --host 0.0.0.0 --port 8000 --workers 4
 4. Push to the branch (`git push origin feature/amazing-feature`)
 5. Open a Pull Request
 
-## 📄 License
-
-This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
-
 ## 🙏 Acknowledgments
 
 - **Google Gemini** for AI capabilities
@@ -207,14 +206,11 @@ This project is licensed under the MIT License - see the [LICENSE](LICENSE) file
 - **FastAPI** for the web framework
 - **Express.js** for generated backends
 
-## 📞 Support
-
-For support, email your-email@example.com or create an issue on GitHub.
-
----
-
-**Made with ❤️ by CodeCraft Team**
+**Made by:**
+Huda Nyazee
+Rimsha Nisar
+Hamza Tufail
 =======
 # CodeCraft--Crafting-Tech-Stacks-from-your-ideas
 Final Year Project 
->>>>>>> ff0e4a16fecc29dab1d87ec33086ba7c86bc6414
+
