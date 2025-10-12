@@ -1,0 +1,312 @@
+components:
+  securitySchemes:
+    bearerAuth:
+      bearerFormat: JWT
+      scheme: bearer
+      type: http
+info:
+  description: Comprehensive API documentation generated from backend analysis
+  servers:
+  - description: API Server
+    url: http://localhost:3000
+  title: Backend API Documentation
+  version: 1.0.0
+openapi: 3.0.0
+paths:
+  /accounting:
+    get:
+      description: GET /accounting
+      responses:
+        '200':
+          description: Successful response
+        '400':
+          description: Bad Request
+        '401':
+          description: Unauthorized
+        '404':
+          description: Not Found
+        '500':
+          description: Internal Server Error
+      security:
+      - bearerAuth: []
+      summary: GET /accounting
+    post:
+      description: POST /accounting
+      responses:
+        '200':
+          description: Successful response
+        '400':
+          description: Bad Request
+        '401':
+          description: Unauthorized
+        '404':
+          description: Not Found
+        '500':
+          description: Internal Server Error
+      security:
+      - bearerAuth: []
+      summary: POST /accounting
+  /ceo:
+    get:
+      description: GET /ceo
+      responses:
+        '200':
+          description: Successful response
+        '400':
+          description: Bad Request
+        '401':
+          description: Unauthorized
+        '404':
+          description: Not Found
+        '500':
+          description: Internal Server Error
+      security:
+      - bearerAuth: []
+      summary: GET /ceo
+    post:
+      description: POST /ceo
+      responses:
+        '200':
+          description: Successful response
+        '400':
+          description: Bad Request
+        '401':
+          description: Unauthorized
+        '404':
+          description: Not Found
+        '500':
+          description: Internal Server Error
+      security:
+      - bearerAuth: []
+      summary: POST /ceo
+  /content_branch:
+    get:
+      description: GET /content_branch
+      responses:
+        '200':
+          description: Successful response
+        '400':
+          description: Bad Request
+        '401':
+          description: Unauthorized
+        '404':
+          description: Not Found
+        '500':
+          description: Internal Server Error
+      security:
+      - bearerAuth: []
+      summary: GET /content_branch
+    post:
+      description: POST /content_branch
+      responses:
+        '200':
+          description: Successful response
+        '400':
+          description: Bad Request
+        '401':
+          description: Unauthorized
+        '404':
+          description: Not Found
+        '500':
+          description: Internal Server Error
+      security:
+      - bearerAuth: []
+      summary: POST /content_branch
+  /development_branch:
+    get:
+      description: GET /development_branch
+      responses:
+        '200':
+          description: Successful response
+        '400':
+          description: Bad Request
+        '401':
+          description: Unauthorized
+        '404':
+          description: Not Found
+        '500':
+          description: Internal Server Error
+      security:
+      - bearerAuth: []
+      summary: GET /development_branch
+    post:
+      description: POST /development_branch
+      responses:
+        '200':
+          description: Successful response
+        '400':
+          description: Bad Request
+        '401':
+          description: Unauthorized
+        '404':
+          description: Not Found
+        '500':
+          description: Internal Server Error
+      security:
+      - bearerAuth: []
+      summary: POST /development_branch
+  /employees:
+    get:
+      description: GET /employees
+      responses:
+        '200':
+          description: Successful response
+        '400':
+          description: Bad Request
+        '401':
+          description: Unauthorized
+        '404':
+          description: Not Found
+        '500':
+          description: Internal Server Error
+      security:
+      - bearerAuth: []
+      summary: GET /employees
+    post:
+      description: POST /employees
+      responses:
+        '200':
+          description: Successful response
+        '400':
+          description: Bad Request
+        '401':
+          description: Unauthorized
+        '404':
+          description: Not Found
+        '500':
+          description: Internal Server Error
+      security:
+      - bearerAuth: []
+      summary: POST /employees
+  /marketing:
+    get:
+      description: GET /marketing
+      responses:
+        '200':
+          description: Successful response
+        '400':
+          description: Bad Request
+        '401':
+          description: Unauthorized
+        '404':
+          description: Not Found
+        '500':
+          description: Internal Server Error
+      security:
+      - bearerAuth: []
+      summary: GET /marketing
+    post:
+      description: POST /marketing
+      responses:
+        '200':
+          description: Successful response
+        '400':
+          description: Bad Request
+        '401':
+          description: Unauthorized
+        '404':
+          description: Not Found
+        '500':
+          description: Internal Server Error
+      security:
+      - bearerAuth: []
+      summary: POST /marketing
+  /quality_assurance:
+    get:
+      description: GET /quality_assurance
+      responses:
+        '200':
+          description: Successful response
+        '400':
+          description: Bad Request
+        '401':
+          description: Unauthorized
+        '404':
+          description: Not Found
+        '500':
+          description: Internal Server Error
+      security:
+      - bearerAuth: []
+      summary: GET /quality_assurance
+    post:
+      description: POST /quality_assurance
+      responses:
+        '200':
+          description: Successful response
+        '400':
+          description: Bad Request
+        '401':
+          description: Unauthorized
+        '404':
+          description: Not Found
+        '500':
+          description: Internal Server Error
+      security:
+      - bearerAuth: []
+      summary: POST /quality_assurance
+  /technical_support:
+    get:
+      description: GET /technical_support
+      responses:
+        '200':
+          description: Successful response
+        '400':
+          description: Bad Request
+        '401':
+          description: Unauthorized
+        '404':
+          description: Not Found
+        '500':
+          description: Internal Server Error
+      security:
+      - bearerAuth: []
+      summary: GET /technical_support
+    post:
+      description: POST /technical_support
+      responses:
+        '200':
+          description: Successful response
+        '400':
+          description: Bad Request
+        '401':
+          description: Unauthorized
+        '404':
+          description: Not Found
+        '500':
+          description: Internal Server Error
+      security:
+      - bearerAuth: []
+      summary: POST /technical_support
+  /vice_president:
+    get:
+      description: GET /vice_president
+      responses:
+        '200':
+          description: Successful response
+        '400':
+          description: Bad Request
+        '401':
+          description: Unauthorized
+        '404':
+          description: Not Found
+        '500':
+          description: Internal Server Error
+      security:
+      - bearerAuth: []
+      summary: GET /vice_president
+    post:
+      description: POST /vice_president
+      responses:
+        '200':
+          description: Successful response
+        '400':
+          description: Bad Request
+        '401':
+          description: Unauthorized
+        '404':
+          description: Not Found
+        '500':
+          description: Internal Server Error
+      security:
+      - bearerAuth: []
+      summary: POST /vice_president

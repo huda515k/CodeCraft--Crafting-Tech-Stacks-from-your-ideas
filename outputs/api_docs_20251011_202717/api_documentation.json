@@ -1,0 +1,277 @@
+{
+  "documentation_title": "Hypothetical API Documentation (Illustrative)",
+  "note": "The provided backend analysis data was empty. This documentation uses expert-level, hypothetical examples (e.g., a standard User resource) to demonstrate the required structure and quality. Please provide actual backend analysis data (routes, models, controllers) for accurate documentation.",
+  "api_overview": {
+    "title": "API Overview",
+    "base_url": "https://api.example.com/v1",
+    "version": "v1",
+    "authentication_methods": [
+      "Bearer Token (JWT)"
+    ],
+    "general_information": "This API provides programmatic access to manage resources. All requests and responses are handled in JSON format. Rate limits are applied per IP address and authenticated user."
+  },
+  "authentication_authorization": {
+    "title": "Authentication & Authorization",
+    "authentication_process": "Authentication is performed using a JSON Web Token (JWT) obtained after successful login (not documented here).",
+    "token_format": "The token is a standard JWT string.",
+    "required_header": {
+      "header_name": "Authorization",
+      "format": "Bearer <YOUR_JWT_TOKEN>",
+      "example": "Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9..."
+    },
+    "authorization_levels": "Access to specific endpoints is determined by the scope embedded within the JWT (e.g., 'admin', 'read:users', 'write:users')."
+  },
+  "endpoints": [
+    {
+      "http_method": "POST",
+      "path": "/users",
+      "description": "Creates a new user account.",
+      "authentication_required": true,
+      "request_parameters": {
+        "path": [],
+        "query": [],
+        "body": [
+          {
+            "name": "username",
+            "type": "string",
+            "required": true,
+            "description": "Unique identifier for the user."
+          },
+          {
+            "name": "email",
+            "type": "string",
+            "required": true,
+            "description": "User's email address (must be unique)."
+          },
+          {
+            "name": "password",
+            "type": "string",
+            "required": true,
+            "description": "User's password (min 8 characters)."
+          }
+        ]
+      },
+      "request_body_schema": "UserCreateRequest",
+      "response_schema": "User",
+      "success_response_example": {
+        "status_code": 201,
+        "body": {
+          "id": "usr_a1b2c3d4",
+          "username": "jdoe",
+          "email": "jdoe@example.com",
+          "created_at": "2023-10-27T10:00:00Z"
+        }
+      },
+      "error_responses": [
+        {
+          "status_code": 400,
+          "description": "Invalid input data (e.g., password too short)."
+        },
+        {
+          "status_code": 409,
+          "description": "Conflict: User with this email or username already exists."
+        }
+      ],
+      "example_curl_request": "curl -X POST 'https://api.example.com/v1/users' \\\n-H 'Authorization: Bearer <TOKEN>' \\\n-H 'Content-Type: application/json' \\\n-d '{\"username\": \"jdoe\", \"email\": \"jdoe@example.com\", \"password\": \"secureP@ss123\"}'"
+    },
+    {
+      "http_method": "GET",
+      "path": "/users/{userId}",
+      "description": "Retrieves details for a specific user.",
+      "authentication_required": true,
+      "request_parameters": {
+        "path": [
+          {
+            "name": "userId",
+            "type": "string",
+            "required": true,
+            "description": "The unique ID of the user to retrieve."
+          }
+        ],
+        "query": [],
+        "body": []
+      },
+      "request_body_schema": null,
+      "response_schema": "User",
+      "success_response_example": {
+        "status_code": 200,
+        "body": {
+          "id": "usr_a1b2c3d4",
+          "username": "jdoe",
+          "email": "jdoe@example.com",
+          "created_at": "2023-10-27T10:00:00Z",
+          "last_login": "2023-10-27T14:30:00Z"
+        }
+      },
+      "error_responses": [
+        {
+          "status_code": 401,
+          "description": "Unauthorized access."
+        },
+        {
+          "status_code": 404,
+          "description": "User not found."
+        }
+      ],
+      "example_curl_request": "curl -X GET 'https://api.example.com/v1/users/usr_a1b2c3d4' \\\n-H 'Authorization: Bearer <TOKEN>'"
+    }
+  ],
+  "data_models": {
+    "title": "Data Models",
+    "models": [
+      {
+        "name": "User",
+        "description": "Represents a registered user in the system.",
+        "schema": {
+          "id": {
+            "type": "string",
+            "description": "Unique system identifier for the user (prefixed with 'usr_')."
+          },
+          "username": {
+            "type": "string",
+            "description": "The user's chosen unique username."
+          },
+          "email": {
+            "type": "string",
+            "format": "email",
+            "description": "The user's verified email address."
+          },
+          "created_at": {
+            "type": "string",
+            "format": "date-time",
+            "description": "Timestamp when the user was created."
+          },
+          "last_login": {
+            "type": "string",
+            "format": "date-time",
+            "nullable": true,
+            "description": "Timestamp of the user's last successful login."
+          }
+        }
+      },
+      {
+        "name": "UserCreateRequest",
+        "description": "Schema for creating a new user.",
+        "schema": {
+          "username": {
+            "type": "string",
+            "required": true
+          },
+          "email": {
+            "type": "string",
+            "required": true
+          },
+          "password": {
+            "type": "string",
+            "required": true,
+            "description": "The plaintext password (will be hashed server-side)."
+          }
+        }
+      },
+      {
+        "name": "ErrorResponse",
+        "description": "Standard structure for API error responses.",
+        "schema": {
+          "status": {
+            "type": "integer",
+            "description": "The HTTP status code."
+          },
+          "code": {
+            "type": "string",
+            "description": "A specific, internal error code (e.g., 'VALIDATION_ERROR')."
+          },
+          "message": {
+            "type": "string",
+            "description": "A human-readable description of the error."
+          },
+          "details": {
+            "type": "object",
+            "nullable": true,
+            "description": "Optional field containing validation errors or specific context."
+          }
+        }
+      }
+    ]
+  },
+  "error_codes": {
+    "title": "Standard Error Codes",
+    "standard_responses": [
+      {
+        "http_status": 400,
+        "internal_code": "BAD_REQUEST",
+        "meaning": "The request was malformed, missing required fields, or contained invalid data.",
+        "example": {
+          "status": 400,
+          "code": "VALIDATION_ERROR",
+          "message": "Input validation failed.",
+          "details": {
+            "email": "Email format is invalid."
+          }
+        }
+      },
+      {
+        "http_status": 401,
+        "internal_code": "UNAUTHORIZED",
+        "meaning": "Authentication failed (missing or invalid token).",
+        "example": {
+          "status": 401,
+          "code": "AUTH_REQUIRED",
+          "message": "Authentication token is missing or expired."
+        }
+      },
+      {
+        "http_status": 403,
+        "internal_code": "FORBIDDEN",
+        "meaning": "The authenticated user does not have permission to access this resource.",
+        "example": {
+          "status": 403,
+          "code": "PERMISSION_DENIED",
+          "message": "User role 'basic' cannot perform 'write:users'."
+        }
+      },
+      {
+        "http_status": 404,
+        "internal_code": "NOT_FOUND",
+        "meaning": "The requested resource could not be found.",
+        "example": {
+          "status": 404,
+          "code": "RESOURCE_NOT_FOUND",
+          "message": "User with ID 'usr_xyz' does not exist."
+        }
+      },
+      {
+        "http_status": 409,
+        "internal_code": "CONFLICT",
+        "meaning": "The request could not be completed because it conflicts with the current state of the resource (e.g., unique constraint violation).",
+        "example": {
+          "status": 409,
+          "code": "UNIQUE_CONSTRAINT_VIOLATION",
+          "message": "A user with this email already exists."
+        }
+      },
+      {
+        "http_status": 500,
+        "internal_code": "INTERNAL_SERVER_ERROR",
+        "meaning": "A generic error occurred on the server side.",
+        "example": {
+          "status": 500,
+          "code": "SERVER_FAILURE",
+          "message": "An unexpected error occurred. Please try again later."
+        }
+      }
+    ]
+  },
+  "overview": "API Documentation Generated",
+  "routes": [],
+  "models": [],
+  "controllers": [],
+  "middlewares": [],
+  "metadata": {
+    "generated_at": "timestamp",
+    "total_routes": 0,
+    "total_models": 0,
+    "total_controllers": 0,
+    "total_middlewares": 0,
+    "analysis_errors": []
+  }
+}

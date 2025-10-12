@@ -1,0 +1,242 @@
+{
+  "api_documentation": {
+    "api_overview": {
+      "title": "Backend API Documentation",
+      "description": "Comprehensive API documentation generated from backend analysis",
+      "base_url": "http://localhost:3000",
+      "authentication_methods": [
+        "JWT Bearer Token"
+      ],
+      "general_information": {
+        "rate_limiting": "Standard rate limits apply",
+        "data_format": "All requests and responses use JSON"
+      }
+    },
+    "authentication_authorization": {
+      "authentication_method": "JSON Web Token (JWT)",
+      "how_to_authenticate": "Include JWT token in Authorization header",
+      "token_format": "Bearer <token>",
+      "required_headers": [
+        {
+          "header": "Authorization",
+          "format": "Bearer <YOUR_JWT_TOKEN>",
+          "description": "JWT token for authentication"
+        }
+      ]
+    },
+    "endpoints": {
+      "GET /employees": {
+        "method": "GET",
+        "path": "/employees",
+        "description": "GET /employees",
+        "parameters": {},
+        "handler": "Function in file",
+        "middleware": []
+      },
+      "POST /employees": {
+        "method": "POST",
+        "path": "/employees",
+        "description": "POST /employees",
+        "parameters": {},
+        "handler": "Function in file",
+        "middleware": []
+      },
+      "GET /ceo": {
+        "method": "GET",
+        "path": "/ceo",
+        "description": "GET /ceo",
+        "parameters": {},
+        "handler": "Function in file",
+        "middleware": []
+      },
+      "POST /ceo": {
+        "method": "POST",
+        "path": "/ceo",
+        "description": "POST /ceo",
+        "parameters": {},
+        "handler": "Function in file",
+        "middleware": []
+      },
+      "GET /vice_president": {
+        "method": "GET",
+        "path": "/vice_president",
+        "description": "GET /vice_president",
+        "parameters": {},
+        "handler": "Function in file",
+        "middleware": []
+      },
+      "POST /vice_president": {
+        "method": "POST",
+        "path": "/vice_president",
+        "description": "POST /vice_president",
+        "parameters": {},
+        "handler": "Function in file",
+        "middleware": []
+      },
+      "GET /accounting": {
+        "method": "GET",
+        "path": "/accounting",
+        "description": "GET /accounting",
+        "parameters": {},
+        "handler": "Function in file",
+        "middleware": []
+      },
+      "POST /accounting": {
+        "method": "POST",
+        "path": "/accounting",
+        "description": "POST /accounting",
+        "parameters": {},
+        "handler": "Function in file",
+        "middleware": []
+      },
+      "GET /development_branch": {
+        "method": "GET",
+        "path": "/development_branch",
+        "description": "GET /development_branch",
+        "parameters": {},
+        "handler": "Function in file",
+        "middleware": []
+      },
+      "POST /development_branch": {
+        "method": "POST",
+        "path": "/development_branch",
+        "description": "POST /development_branch",
+        "parameters": {},
+        "handler": "Function in file",
+        "middleware": []
+      },
+      "GET /quality_assurance": {
+        "method": "GET",
+        "path": "/quality_assurance",
+        "description": "GET /quality_assurance",
+        "parameters": {},
+        "handler": "Function in file",
+        "middleware": []
+      },
+      "POST /quality_assurance": {
+        "method": "POST",
+        "path": "/quality_assurance",
+        "description": "POST /quality_assurance",
+        "parameters": {},
+        "handler": "Function in file",
+        "middleware": []
+      },
+      "GET /marketing": {
+        "method": "GET",
+        "path": "/marketing",
+        "description": "GET /marketing",
+        "parameters": {},
+        "handler": "Function in file",
+        "middleware": []
+      },
+      "POST /marketing": {
+        "method": "POST",
+        "path": "/marketing",
+        "description": "POST /marketing",
+        "parameters": {},
+        "handler": "Function in file",
+        "middleware": []
+      },
+      "GET /content_branch": {
+        "method": "GET",
+        "path": "/content_branch",
+        "description": "GET /content_branch",
+        "parameters": {},
+        "handler": "Function in file",
+        "middleware": []
+      },
+      "POST /content_branch": {
+        "method": "POST",
+        "path": "/content_branch",
+        "description": "POST /content_branch",
+        "parameters": {},
+        "handler": "Function in file",
+        "middleware": []
+      },
+      "GET /technical_support": {
+        "method": "GET",
+        "path": "/technical_support",
+        "description": "GET /technical_support",
+        "parameters": {},
+        "handler": "Function in file",
+        "middleware": []
+      },
+      "POST /technical_support": {
+        "method": "POST",
+        "path": "/technical_support",
+        "description": "POST /technical_support",
+        "parameters": {},
+        "handler": "Function in file",
+        "middleware": []
+      }
+    },
+    "data_models": {
+      "Accounting": {
+        "description": "Data model: Accounting",
+        "type": "Data Model",
+        "file": "src\\models\\Accounting.ts"
+      },
+      "CEO": {
+        "description": "Data model: CEO",
+        "type": "Data Model",
+        "file": "src\\models\\CEO.ts"
+      },
+      "ContentBranch": {
+        "description": "Data model: ContentBranch",
+        "type": "Data Model",
+        "file": "src\\models\\ContentBranch.ts"
+      },
+      "DevelopmentBranch": {
+        "description": "Data model: DevelopmentBranch",
+        "type": "Data Model",
+        "file": "src\\models\\DevelopmentBranch.ts"
+      },
+      "Employees": {
+        "description": "Data model: Employees",
+        "type": "Data Model",
+        "file": "src\\models\\Employees.ts"
+      },
+      "index": {
+        "description": "Data model: index",
+        "type": "Data Model",
+        "file": "src\\models\\index.ts"
+      },
+      "Marketing": {
+        "description": "Data model: Marketing",
+        "type": "Data Model",
+        "file": "src\\models\\Marketing.ts"
+      },
+      "QualityAssurance": {
+        "description": "Data model: QualityAssurance",
+        "type": "Data Model",
+        "file": "src\\models\\QualityAssurance.ts"
+      },
+      "TechnicalSupport": {
+        "description": "Data model: TechnicalSupport",
+        "type": "Data Model",
+        "file": "src\\models\\TechnicalSupport.ts"
+      },
+      "VicePresident": {
+        "description": "Data model: VicePresident",
+        "type": "Data Model",
+        "file": "src\\models\\VicePresident.ts"
+      }
+    },
+    "error_handling": {
+      "standard_errors": {
+        "400": "Bad Request - Invalid input data",
+        "401": "Unauthorized - Authentication required",
+        "403": "Forbidden - Insufficient permissions",
+        "404": "Not Found - Resource not found",
+        "500": "Internal Server Error - Server error"
+      }
+    }
+  },
+  "metadata": {
+    "total_routes": 18,
+    "total_models": 10,
+    "total_controllers": 0,
+    "total_middlewares": 0,
+    "analysis_errors": []
+  }
+}

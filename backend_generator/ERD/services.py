@@ -17,16 +17,28 @@ class ERDProcessingService:
         self.converter = JSONConverter()
         self.validator = JSONValidator()
     
-    async def process_erd(self, request: ERDProcessingRequest) -> ERDProcessingResponse:
+    async def process_erd(self, request: ERDProcessingRequest = None, image_data: bytes = None, additional_context: str = None, model_override: str = None) -> ERDProcessingResponse:
         """
         Process ERD image and extract schema
         """
         try:
+            # Handle both old request format and new direct parameters
+            if request is not None:
+                image_data = request.image_data
+                image_url = request.image_url
+                additional_context = request.additional_context
+            else:
+                image_url = None
+            
+            # Set model override if provided
+            if model_override:
+                self.parser.model_name = model_override
+            
             # Parse the ERD image
             parsed_data = await self.parser.parse_erd_image(
-                image_data=request.image_data,
-                image_url=request.image_url,
-                additional_context=request.additional_context
+                image_data=image_data,
+                image_url=image_url,
+                additional_context=additional_context
             )
             
             if not parsed_data:

@@ -37,6 +37,28 @@ class RelationshipType(str, Enum):
     ONE_TO_MANY = "1:N"
     MANY_TO_ONE = "N:1"
     MANY_TO_MANY = "M:N"
+    # Common variations that AI might return
+    ONE_TO_MANY_IDENTIFYING = "1:N (Identifying)"
+    ONE_TO_MANY_NON_IDENTIFYING = "1:N (Non-Identifying)"
+    MANY_TO_ONE_IDENTIFYING = "N:1 (Identifying)"
+    MANY_TO_ONE_NON_IDENTIFYING = "N:1 (Non-Identifying)"
+    ONE_TO_ONE_IDENTIFYING = "1:1 (Identifying)"
+    ONE_TO_ONE_NON_IDENTIFYING = "1:1 (Non-Identifying)"
+    MANY_TO_MANY_IDENTIFYING = "M:N (Identifying)"
+    MANY_TO_MANY_NON_IDENTIFYING = "M:N (Non-Identifying)"
+    # Additional common patterns
+    ONE_TO_MANY_OPTIONAL = "1:N (Optional)"
+    # AI might return N:N instead of M:N
+    MANY_TO_MANY_ALT = "N:N"
+    # AI might return M:1 instead of N:1
+    MANY_TO_ONE_ALT = "M:1"
+    # AI might return 1:M instead of 1:N
+    ONE_TO_MANY_ALT = "1:M"
+    # AI might return M:M instead of M:N
+    MANY_TO_MANY_ALT2 = "M:M"
+    ONE_TO_MANY_REQUIRED = "1:N (Required)"
+    MANY_TO_ONE_OPTIONAL = "N:1 (Optional)"
+    MANY_TO_ONE_REQUIRED = "N:1 (Required)"
 
 class Attribute(BaseModel):
     name: str = Field(..., description="Attribute name")

@@ -1,0 +1,11 @@
+{
+  "overview": "API Documentation",
+  "routes": [],
+  "models": [],
+  "controllers": [],
+  "middlewares": [],
+  "errors": [
+    "Error extracting routes from src\\routes\\index.ts: 404 models/gemini-1.5-flash-latest is not found for API version v1beta, or is not supported for generateContent. Call ListModels to see the list of available models and their supported methods.",
+    "Error generating documentation: 404 models/gemini-1.5-flash-latest is not found for API version v1beta, or is not supported for generateContent. Call ListModels to see the list of available models and their supported methods."
+  ]
+}

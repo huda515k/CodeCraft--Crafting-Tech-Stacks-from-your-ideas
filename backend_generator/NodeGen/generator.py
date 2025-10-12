@@ -6,6 +6,7 @@ import shutil
 import tempfile
 from dataclasses import dataclass
 from typing import Dict, Any, List
+from pathlib import Path
 
 from ..ERD.models import ERDSchema, Entity, Attribute, DataType
 
@@ -21,18 +22,37 @@ class NodeProjectGenerator:
 
     def generate(self, erd_schema: ERDSchema) -> GeneratedProject:
         project_dir = tempfile.mkdtemp(prefix="codecraft_node_")
-
+        
+        # Create basic project structure
+        self._create_directory_structure(project_dir)
         self._write_package_json(project_dir)
         self._write_tsconfig(project_dir)
+        self._write_env(project_dir)
+        self._write_gitignore(project_dir)
+        self._write_readme(project_dir, erd_schema)
+        
+        # Core application files
         self._write_src_index(project_dir)
         self._write_src_app(project_dir)
         self._write_src_db(project_dir)
+        
+        # Models based on ERD
         self._write_src_models(project_dir, erd_schema)
+        
+        # Routes based on ERD entities
         self._write_src_routes(project_dir, erd_schema)
-        self._write_env(project_dir)
-        self._write_readme(project_dir, erd_schema)
 
         return GeneratedProject(output_dir=project_dir)
+
+    def _create_directory_structure(self, root: str) -> None:
+        """Create basic directory structure"""
+        dirs = [
+            "src",
+            "src/models",
+            "src/routes"
+        ]
+        for dir_path in dirs:
+            os.makedirs(os.path.join(root, dir_path), exist_ok=True)
 
     def _write_package_json(self, root: str) -> None:
         pkg = {
@@ -277,6 +297,16 @@ class NodeProjectGenerator:
         with open(os.path.join(root, ".env"), "w", encoding="utf-8") as f:
             f.write("DATABASE_URL=postgres://user:password@localhost:5432/app\n")
 
+    def _write_gitignore(self, root: str) -> None:
+        gitignore_content = """node_modules/
+dist/
+.env
+*.log
+.DS_Store
+"""
+        with open(os.path.join(root, ".gitignore"), "w", encoding="utf-8") as f:
+            f.write(gitignore_content)
+
     def _write_readme(self, root: str, erd: ERDSchema) -> None:
         with open(os.path.join(root, "README.md"), "w", encoding="utf-8") as f:
             f.write(
@@ -311,5 +341,3 @@ class NodeProjectGenerator:
             else:
                 out.append(ch)
         return ''.join(out)
-
-

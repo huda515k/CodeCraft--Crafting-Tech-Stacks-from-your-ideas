@@ -1,0 +1,95 @@
+{
+  "api_documentation": {
+    "api_overview": {
+      "title": "Backend API Documentation",
+      "description": "Comprehensive API documentation generated from backend analysis",
+      "base_url": "http://localhost:3000",
+      "authentication_methods": [
+        "JWT Bearer Token"
+      ],
+      "general_information": {
+        "rate_limiting": "Standard rate limits apply",
+        "data_format": "All requests and responses use JSON"
+      }
+    },
+    "authentication_authorization": {
+      "authentication_method": "JSON Web Token (JWT)",
+      "how_to_authenticate": "Include JWT token in Authorization header",
+      "token_format": "Bearer <token>",
+      "required_headers": [
+        {
+          "header": "Authorization",
+          "format": "Bearer <YOUR_JWT_TOKEN>",
+          "description": "JWT token for authentication"
+        }
+      ]
+    },
+    "endpoints": {
+      "GET /": {
+        "method": "GET",
+        "path": "/",
+        "description": "GET /",
+        "parameters": {},
+        "handler": "Function in file",
+        "middleware": []
+      },
+      "GET /:id": {
+        "method": "GET",
+        "path": "/:id",
+        "description": "GET /:id",
+        "parameters": {},
+        "handler": "Function in file",
+        "middleware": []
+      },
+      "POST /": {
+        "method": "POST",
+        "path": "/",
+        "description": "POST /",
+        "parameters": {},
+        "handler": "Function in file",
+        "middleware": []
+      },
+      "PUT /:id": {
+        "method": "PUT",
+        "path": "/:id",
+        "description": "PUT /:id",
+        "parameters": {},
+        "handler": "Function in file",
+        "middleware": []
+      },
+      "DELETE /:id": {
+        "method": "DELETE",
+        "path": "/:id",
+        "description": "DELETE /:id",
+        "parameters": {},
+        "handler": "Function in file",
+        "middleware": []
+      }
+    },
+    "data_models": {
+      "User": {
+        "description": "Data model: User",
+        "type": "Data Model",
+        "file": "sample_backend\\models\\User.js"
+      }
+    },
+    "error_handling": {
+      "standard_errors": {
+        "400": "Bad Request - Invalid input data",
+        "401": "Unauthorized - Authentication required",
+        "403": "Forbidden - Insufficient permissions",
+        "404": "Not Found - Resource not found",
+        "500": "Internal Server Error - Server error"
+      }
+    }
+  },
+  "metadata": {
+    "total_routes": 5,
+    "total_models": 1,
+    "total_controllers": 1,
+    "total_middlewares": 1,
+    "analysis_errors": [
+      "Error extracting routes from sample_backend\\app.js: 'DocumentationAgent' object has no attribute '_extract_json_from_response'"
+    ]
+  }
+}

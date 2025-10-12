@@ -6,7 +6,8 @@ with Sequelize models and CRUD route/controller stubs.
 """
 
 from .generator import NodeProjectGenerator
+from .advanced_generator import AdvancedNodeProjectGenerator
 
-__all__ = ["NodeProjectGenerator"]
+__all__ = ["NodeProjectGenerator", "AdvancedNodeProjectGenerator"]
 
 

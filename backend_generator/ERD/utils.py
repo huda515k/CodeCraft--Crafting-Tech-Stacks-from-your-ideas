@@ -348,7 +348,7 @@ class JSONSchemaGenerator:
                             "description": "Target entity name"
                         },
                         "relationship_type": {
-                            "enum": ["1:1", "1:N", "N:1", "M:N"],
+                            "enum": ["1:1", "1:N", "N:1", "M:N", "N:N", "M:1", "1:M", "M:M"],
                             "description": "Type of relationship"
                         }
                     },
