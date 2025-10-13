@@ -9,11 +9,17 @@ generates backend from an already developed frontend.
 
 ## ✨ Features
 
-- **🧠 AI-Powered ERD Analysis**: Uses Gemini Flash Latest for intelligent ERD processing
+- **🧠 AI-Powered ERD Analysis**: Uses Gemini Flash Latest for intelligent ERD processing with robust error handling
 - **🔄 LangGraph Workflow**: Multi-step reasoning with state management
 - **⚡ Seamless Generation**: Upload ERD → Get complete backend automatically
 - **📦 Intelligent Naming**: Automatically names backends based on domain (e.g., "sales_management_system")
-- **🏗️ Production Ready**: Generates Express.js, Sequelize, TypeScript backends
+- **🏗️ Production Ready**: Generates complete Express.js backends with:
+  - **Controllers**: Full CRUD operations for each entity
+  - **Middleware**: Authentication, validation, error handling, CORS, security
+  - **Services**: Business logic layer with pagination and filtering
+  - **Models**: Enhanced TypeScript models with proper relationships
+  - **Routes**: RESTful API endpoints with proper HTTP methods
+- **🔧 Enhanced ERD Processing**: Fixed foreign key reference issues and improved JSON parsing
 - **🎯 Domain Detection**: Recognizes 15+ business domains (HR, E-commerce, Healthcare, etc.)
 
 ## 🚀 Quick Start
@@ -83,17 +89,33 @@ GET /agent/capabilities
 
 ## 🏗️ Generated Backend Features
 
-Each generated backend includes:
+Each generated backend includes a complete, production-ready structure:
 
+### 🎯 **Core Architecture**
 - **Express.js** server with TypeScript
 - **Sequelize** ORM with PostgreSQL support
 - **RESTful API** routes for all entities
-- **Database models** with relationships
-- **Error handling** and validation
-- **CORS** and security middleware
+- **Database models** with proper relationships
+
+### 🛡️ **Security & Middleware**
+- **JWT Authentication** with secure token handling
+- **Input Validation** using express-validator
+- **CORS** and security headers (Helmet)
+- **Error Handling** middleware with proper logging
+- **Request Logging** (Morgan) and compression
+
+### 🏢 **Business Logic**
+- **Controllers** with full CRUD operations for each entity
+- **Services** with pagination, filtering, and search
+- **TypeScript Interfaces** for type safety
+- **Model Relationships** properly defined
+
+### 🚀 **Production Features**
 - **Development scripts** (npm run dev, build, start)
-- **TypeScript configuration**
+- **TypeScript configuration** with strict settings
 - **Package.json** with all dependencies
+- **Health check endpoints**
+- **Comprehensive documentation**
 
 ## 🧠 AI Agent Capabilities
 
@@ -178,6 +200,21 @@ CodeCraft/
 ├── requirements.txt         # Python dependencies
 └── README.md               # This file
 ```
+
+## 🔧 Recent Improvements
+
+### Enhanced Backend Generation
+- ✅ **Complete Controller Layer**: Full CRUD operations for each entity
+- ✅ **Comprehensive Middleware**: Authentication, validation, error handling, CORS, security
+- ✅ **Service Layer**: Business logic with pagination, filtering, and search
+- ✅ **Enhanced Models**: TypeScript interfaces with proper relationships
+- ✅ **Production Security**: JWT authentication, input validation, security headers
+
+### Fixed ERD Processing
+- ✅ **Robust JSON Parsing**: Handles malformed AI responses gracefully
+- ✅ **Correct Foreign Keys**: Fixed `composite_pk` reference issues
+- ✅ **Better Error Handling**: Clear error messages and debugging information
+- ✅ **Improved AI Prompts**: More specific instructions for accurate ERD interpretation
 
 ## 🚀 Deployment
 

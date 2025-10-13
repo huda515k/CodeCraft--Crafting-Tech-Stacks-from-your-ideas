@@ -131,6 +131,9 @@ class ERDParser:
         - Be thorough in identifying all entities and relationships
         - If uncertain about data types, default to 'string'
         - Ensure all JSON is valid and properly formatted
+        - CRITICAL: Do NOT use 'composite_pk' as a column name - use the actual primary key names from the ERD
+        - CRITICAL: For foreign keys, reference the actual primary key column names, not generic names
+        - CRITICAL: If an entity has a primary key like 'CharName', reference it as 'CharName', not 'composite_pk'
         """
         
         if additional_context:
@@ -181,7 +184,7 @@ class ERDParser:
             raise Exception(f"Gemini API error: {str(e)}")
     
     def _parse_gemini_response(self, response_text: str) -> Dict[str, Any]:
-        """Parse Gemini response and extract JSON"""
+        """Parse Gemini response and extract JSON with robust error handling"""
         try:
             # Try to extract JSON from response
             json_start = response_text.find('{')
@@ -191,7 +194,22 @@ class ERDParser:
                 raise ValueError("No JSON found in response")
             
             json_str = response_text[json_start:json_end]
-            parsed_data = json.loads(json_str)
+            
+            # Try to parse the JSON
+            try:
+                parsed_data = json.loads(json_str)
+            except json.JSONDecodeError as e:
+                # If JSON parsing fails, try to fix common issues
+                print(f"JSON parsing failed: {e}")
+                print(f"Problematic JSON (first 500 chars): {json_str[:500]}")
+                
+                # Try to fix common JSON issues
+                fixed_json = self._fix_common_json_issues(json_str)
+                if fixed_json != json_str:
+                    print("Attempting to fix JSON issues...")
+                    parsed_data = json.loads(fixed_json)
+                else:
+                    raise ValueError(f"Invalid JSON in response: {str(e)}")
             
             # Add timestamp
             from datetime import datetime
@@ -199,10 +217,26 @@ class ERDParser:
             
             return parsed_data
             
-        except json.JSONDecodeError as e:
-            raise ValueError(f"Invalid JSON in response: {str(e)}")
         except Exception as e:
             raise ValueError(f"Error parsing response: {str(e)}")
+    
+    def _fix_common_json_issues(self, json_str: str) -> str:
+        """Fix common JSON issues that AI might generate"""
+        import re
+        
+        # Fix trailing commas
+        json_str = re.sub(r',(\s*[}\]])', r'\1', json_str)
+        
+        # Fix missing quotes around keys
+        json_str = re.sub(r'(\w+):', r'"\1":', json_str)
+        
+        # Fix single quotes to double quotes
+        json_str = json_str.replace("'", '"')
+        
+        # Fix unescaped quotes in strings
+        json_str = re.sub(r':\s*"([^"]*)"([^",}\]]*)"', r': "\1\2"', json_str)
+        
+        return json_str
     
     async def _process_image_url(self, image_url: str, additional_context: Optional[str] = None) -> Optional[Dict[str, Any]]:
         """Process image from URL"""
