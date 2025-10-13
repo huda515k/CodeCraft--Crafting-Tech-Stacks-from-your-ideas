@@ -304,6 +304,17 @@ class NodeProjectGenerator:
         
         # Generate fields with better structure
         fields: List[str] = []
+        
+        # Always include id field for Sequelize compatibility
+        fields.extend([
+            "  id: {",
+            "    type: DataTypes.INTEGER,",
+            "    allowNull: false,",
+            "    autoIncrement: true,",
+            "    primaryKey: true,",
+            "  },"
+        ])
+        
         for attr in entity.attributes:
             col = [f"  {attr.name}: {{", f"    type: {self._sequelize_type(attr.data_type)},"]
             if not attr.is_nullable:
@@ -575,44 +586,53 @@ class NodeProjectGenerator:
         with open(os.path.join(middleware_dir, "errorHandler.ts"), "w", encoding="utf-8") as f:
             f.write("\n".join(error_middleware))
         
-        # Authentication middleware
-        auth_middleware = [
-            "import { Request, Response, NextFunction } from 'express';",
-            "import jwt from 'jsonwebtoken';",
-            "",
-            "export const authenticateToken = (req: Request, res: Response, next: NextFunction): void => {",
-            "  const authHeader = req.headers['authorization'];",
-            "  const token = authHeader && authHeader.split(' ')[1];",
-            "",
-            "  if (!token) {",
-            "    res.status(401).json({ error: 'Access token required' });",
-            "    return;",
-            "  }",
-            "",
-            "  jwt.verify(token, process.env.JWT_SECRET || 'your-secret-key', (err, user) => {",
-            "    if (err) {",
-            "      res.status(403).json({ error: 'Invalid token' });",
-            "      return;",
-            "    }",
-            "    req.user = user;",
-            "    next();",
-            "  });",
-            "};",
-            "",
-            "export const optionalAuth = (req: Request, res: Response, next: NextFunction): void => {",
-            "  const authHeader = req.headers['authorization'];",
-            "  const token = authHeader && authHeader.split(' ')[1];",
-            "",
-            "  if (token) {",
-            "    jwt.verify(token, process.env.JWT_SECRET || 'your-secret-key', (err, user) => {",
-            "      if (!err) {",
-            "        req.user = user;",
-            "      }",
-            "    });",
-            "  }",
-            "  next();",
-            "};"
-        ]
+            # Authentication middleware
+            auth_middleware = [
+                "import { Request, Response, NextFunction } from 'express';",
+                "import jwt from 'jsonwebtoken';",
+                "",
+                "// Extend Request interface to include user",
+                "declare global {",
+                "  namespace Express {",
+                "    interface Request {",
+                "      user?: any;",
+                "    }",
+                "  }",
+                "}",
+                "",
+                "export const authenticateToken = (req: Request, res: Response, next: NextFunction): void => {",
+                "  const authHeader = req.headers['authorization'];",
+                "  const token = authHeader && authHeader.split(' ')[1];",
+                "",
+                "  if (!token) {",
+                "    res.status(401).json({ error: 'Access token required' });",
+                "    return;",
+                "  }",
+                "",
+                "  jwt.verify(token, process.env.JWT_SECRET || 'your-secret-key', (err, user) => {",
+                "    if (err) {",
+                "      res.status(403).json({ error: 'Invalid token' });",
+                "      return;",
+                "    }",
+                "    req.user = user;",
+                "    next();",
+                "  });",
+                "};",
+                "",
+                "export const optionalAuth = (req: Request, res: Response, next: NextFunction): void => {",
+                "  const authHeader = req.headers['authorization'];",
+                "  const token = authHeader && authHeader.split(' ')[1];",
+                "",
+                "  if (token) {",
+                "    jwt.verify(token, process.env.JWT_SECRET || 'your-secret-key', (err, user) => {",
+                "      if (!err) {",
+                "        req.user = user;",
+                "      }",
+                "    });",
+                "  }",
+                "  next();",
+                "};"
+            ]
         
         with open(os.path.join(middleware_dir, "auth.ts"), "w", encoding="utf-8") as f:
             f.write("\n".join(auth_middleware))

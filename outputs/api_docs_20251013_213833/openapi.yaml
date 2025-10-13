@@ -1,0 +1,279 @@
+components:
+  securitySchemes:
+    bearerAuth:
+      bearerFormat: JWT
+      scheme: bearer
+      type: http
+info:
+  description: Comprehensive API documentation generated from backend analysis
+  servers:
+  - description: API Server
+    url: http://localhost:3000
+  title: Backend API Documentation
+  version: 1.0.0
+openapi: 3.0.0
+paths:
+  /account:
+    get:
+      description: GET /account
+      responses:
+        '200':
+          description: Successful response
+        '400':
+          description: Bad Request
+        '401':
+          description: Unauthorized
+        '404':
+          description: Not Found
+        '500':
+          description: Internal Server Error
+      security:
+      - bearerAuth: []
+      summary: GET /account
+    post:
+      description: POST /account
+      responses:
+        '200':
+          description: Successful response
+        '400':
+          description: Bad Request
+        '401':
+          description: Unauthorized
+        '404':
+          description: Not Found
+        '500':
+          description: Internal Server Error
+      security:
+      - bearerAuth: []
+      summary: POST /account
+  /character:
+    get:
+      description: GET /character
+      responses:
+        '200':
+          description: Successful response
+        '400':
+          description: Bad Request
+        '401':
+          description: Unauthorized
+        '404':
+          description: Not Found
+        '500':
+          description: Internal Server Error
+      security:
+      - bearerAuth: []
+      summary: GET /character
+    post:
+      description: POST /character
+      responses:
+        '200':
+          description: Successful response
+        '400':
+          description: Bad Request
+        '401':
+          description: Unauthorized
+        '404':
+          description: Not Found
+        '500':
+          description: Internal Server Error
+      security:
+      - bearerAuth: []
+      summary: POST /character
+  /character_creep_encounter:
+    get:
+      description: GET /character_creep_encounter
+      responses:
+        '200':
+          description: Successful response
+        '400':
+          description: Bad Request
+        '401':
+          description: Unauthorized
+        '404':
+          description: Not Found
+        '500':
+          description: Internal Server Error
+      security:
+      - bearerAuth: []
+      summary: GET /character_creep_encounter
+    post:
+      description: POST /character_creep_encounter
+      responses:
+        '200':
+          description: Successful response
+        '400':
+          description: Bad Request
+        '401':
+          description: Unauthorized
+        '404':
+          description: Not Found
+        '500':
+          description: Internal Server Error
+      security:
+      - bearerAuth: []
+      summary: POST /character_creep_encounter
+  /creep:
+    get:
+      description: GET /creep
+      responses:
+        '200':
+          description: Successful response
+        '400':
+          description: Bad Request
+        '401':
+          description: Unauthorized
+        '404':
+          description: Not Found
+        '500':
+          description: Internal Server Error
+      security:
+      - bearerAuth: []
+      summary: GET /creep
+    post:
+      description: POST /creep
+      responses:
+        '200':
+          description: Successful response
+        '400':
+          description: Bad Request
+        '401':
+          description: Unauthorized
+        '404':
+          description: Not Found
+        '500':
+          description: Internal Server Error
+      security:
+      - bearerAuth: []
+      summary: POST /creep
+  /creep_instantiation:
+    get:
+      description: GET /creep_instantiation
+      responses:
+        '200':
+          description: Successful response
+        '400':
+          description: Bad Request
+        '401':
+          description: Unauthorized
+        '404':
+          description: Not Found
+        '500':
+          description: Internal Server Error
+      security:
+      - bearerAuth: []
+      summary: GET /creep_instantiation
+    post:
+      description: POST /creep_instantiation
+      responses:
+        '200':
+          description: Successful response
+        '400':
+          description: Bad Request
+        '401':
+          description: Unauthorized
+        '404':
+          description: Not Found
+        '500':
+          description: Internal Server Error
+      security:
+      - bearerAuth: []
+      summary: POST /creep_instantiation
+  /item:
+    get:
+      description: GET /item
+      responses:
+        '200':
+          description: Successful response
+        '400':
+          description: Bad Request
+        '401':
+          description: Unauthorized
+        '404':
+          description: Not Found
+        '500':
+          description: Internal Server Error
+      security:
+      - bearerAuth: []
+      summary: GET /item
+    post:
+      description: POST /item
+      responses:
+        '200':
+          description: Successful response
+        '400':
+          description: Bad Request
+        '401':
+          description: Unauthorized
+        '404':
+          description: Not Found
+        '500':
+          description: Internal Server Error
+      security:
+      - bearerAuth: []
+      summary: POST /item
+  /item_instantiation:
+    get:
+      description: GET /item_instantiation
+      responses:
+        '200':
+          description: Successful response
+        '400':
+          description: Bad Request
+        '401':
+          description: Unauthorized
+        '404':
+          description: Not Found
+        '500':
+          description: Internal Server Error
+      security:
+      - bearerAuth: []
+      summary: GET /item_instantiation
+    post:
+      description: POST /item_instantiation
+      responses:
+        '200':
+          description: Successful response
+        '400':
+          description: Bad Request
+        '401':
+          description: Unauthorized
+        '404':
+          description: Not Found
+        '500':
+          description: Internal Server Error
+      security:
+      - bearerAuth: []
+      summary: POST /item_instantiation
+  /region:
+    get:
+      description: GET /region
+      responses:
+        '200':
+          description: Successful response
+        '400':
+          description: Bad Request
+        '401':
+          description: Unauthorized
+        '404':
+          description: Not Found
+        '500':
+          description: Internal Server Error
+      security:
+      - bearerAuth: []
+      summary: GET /region
+    post:
+      description: POST /region
+      responses:
+        '200':
+          description: Successful response
+        '400':
+          description: Bad Request
+        '401':
+          description: Unauthorized
+        '404':
+          description: Not Found
+        '500':
+          description: Internal Server Error
+      security:
+      - bearerAuth: []
+      summary: POST /region

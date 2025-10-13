@@ -1,0 +1,221 @@
+{
+  "api_documentation": {
+    "api_overview": {
+      "title": "Backend API Documentation",
+      "description": "Comprehensive API documentation generated from backend analysis",
+      "base_url": "http://localhost:3000",
+      "authentication_methods": [
+        "JWT Bearer Token"
+      ],
+      "general_information": {
+        "rate_limiting": "Standard rate limits apply",
+        "data_format": "All requests and responses use JSON"
+      }
+    },
+    "authentication_authorization": {
+      "authentication_method": "JSON Web Token (JWT)",
+      "how_to_authenticate": "Include JWT token in Authorization header",
+      "token_format": "Bearer <token>",
+      "required_headers": [
+        {
+          "header": "Authorization",
+          "format": "Bearer <YOUR_JWT_TOKEN>",
+          "description": "JWT token for authentication"
+        }
+      ]
+    },
+    "endpoints": {
+      "GET /account": {
+        "method": "GET",
+        "path": "/account",
+        "description": "GET /account",
+        "parameters": {},
+        "handler": "Function in file",
+        "middleware": []
+      },
+      "POST /account": {
+        "method": "POST",
+        "path": "/account",
+        "description": "POST /account",
+        "parameters": {},
+        "handler": "Function in file",
+        "middleware": []
+      },
+      "GET /character": {
+        "method": "GET",
+        "path": "/character",
+        "description": "GET /character",
+        "parameters": {},
+        "handler": "Function in file",
+        "middleware": []
+      },
+      "POST /character": {
+        "method": "POST",
+        "path": "/character",
+        "description": "POST /character",
+        "parameters": {},
+        "handler": "Function in file",
+        "middleware": []
+      },
+      "GET /region": {
+        "method": "GET",
+        "path": "/region",
+        "description": "GET /region",
+        "parameters": {},
+        "handler": "Function in file",
+        "middleware": []
+      },
+      "POST /region": {
+        "method": "POST",
+        "path": "/region",
+        "description": "POST /region",
+        "parameters": {},
+        "handler": "Function in file",
+        "middleware": []
+      },
+      "GET /item": {
+        "method": "GET",
+        "path": "/item",
+        "description": "GET /item",
+        "parameters": {},
+        "handler": "Function in file",
+        "middleware": []
+      },
+      "POST /item": {
+        "method": "POST",
+        "path": "/item",
+        "description": "POST /item",
+        "parameters": {},
+        "handler": "Function in file",
+        "middleware": []
+      },
+      "GET /item_instantiation": {
+        "method": "GET",
+        "path": "/item_instantiation",
+        "description": "GET /item_instantiation",
+        "parameters": {},
+        "handler": "Function in file",
+        "middleware": []
+      },
+      "POST /item_instantiation": {
+        "method": "POST",
+        "path": "/item_instantiation",
+        "description": "POST /item_instantiation",
+        "parameters": {},
+        "handler": "Function in file",
+        "middleware": []
+      },
+      "GET /creep": {
+        "method": "GET",
+        "path": "/creep",
+        "description": "GET /creep",
+        "parameters": {},
+        "handler": "Function in file",
+        "middleware": []
+      },
+      "POST /creep": {
+        "method": "POST",
+        "path": "/creep",
+        "description": "POST /creep",
+        "parameters": {},
+        "handler": "Function in file",
+        "middleware": []
+      },
+      "GET /creep_instantiation": {
+        "method": "GET",
+        "path": "/creep_instantiation",
+        "description": "GET /creep_instantiation",
+        "parameters": {},
+        "handler": "Function in file",
+        "middleware": []
+      },
+      "POST /creep_instantiation": {
+        "method": "POST",
+        "path": "/creep_instantiation",
+        "description": "POST /creep_instantiation",
+        "parameters": {},
+        "handler": "Function in file",
+        "middleware": []
+      },
+      "GET /character_creep_encounter": {
+        "method": "GET",
+        "path": "/character_creep_encounter",
+        "description": "GET /character_creep_encounter",
+        "parameters": {},
+        "handler": "Function in file",
+        "middleware": []
+      },
+      "POST /character_creep_encounter": {
+        "method": "POST",
+        "path": "/character_creep_encounter",
+        "description": "POST /character_creep_encounter",
+        "parameters": {},
+        "handler": "Function in file",
+        "middleware": []
+      }
+    },
+    "data_models": {
+      "Account": {
+        "description": "Data model: Account",
+        "type": "Data Model",
+        "file": "src/models/Account.ts"
+      },
+      "CharacterCreepEncounter": {
+        "description": "Data model: CharacterCreepEncounter",
+        "type": "Data Model",
+        "file": "src/models/CharacterCreepEncounter.ts"
+      },
+      "Item": {
+        "description": "Data model: Item",
+        "type": "Data Model",
+        "file": "src/models/Item.ts"
+      },
+      "ItemInstantiation": {
+        "description": "Data model: ItemInstantiation",
+        "type": "Data Model",
+        "file": "src/models/ItemInstantiation.ts"
+      },
+      "Character": {
+        "description": "Data model: Character",
+        "type": "Data Model",
+        "file": "src/models/Character.ts"
+      },
+      "Creep": {
+        "description": "Data model: Creep",
+        "type": "Data Model",
+        "file": "src/models/Creep.ts"
+      },
+      "Region": {
+        "description": "Data model: Region",
+        "type": "Data Model",
+        "file": "src/models/Region.ts"
+      },
+      "index": {
+        "description": "Data model: index",
+        "type": "Data Model",
+        "file": "src/models/index.ts"
+      },
+      "CreepInstantiation": {
+        "description": "Data model: CreepInstantiation",
+        "type": "Data Model",
+        "file": "src/models/CreepInstantiation.ts"
+      }
+    },
+    "error_handling": {
+      "standard_errors": {
+        "400": "Bad Request - Invalid input data",
+        "401": "Unauthorized - Authentication required",
+        "403": "Forbidden - Insufficient permissions",
+        "404": "Not Found - Resource not found",
+        "500": "Internal Server Error - Server error"
+      }
+    }
+  },
+  "metadata": {
+    "total_routes": 16,
+    "total_models": 9,
+    "total_controllers": 0,
+    "total_middlewares": 0,
+    "analysis_errors": []
+  }
+}

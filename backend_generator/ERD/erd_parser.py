@@ -134,6 +134,9 @@ class ERDParser:
         - CRITICAL: Do NOT use 'composite_pk' as a column name - use the actual primary key names from the ERD
         - CRITICAL: For foreign keys, reference the actual primary key column names, not generic names
         - CRITICAL: If an entity has a primary key like 'CharName', reference it as 'CharName', not 'composite_pk'
+        - CRITICAL: Look carefully at the ERD to identify the EXACT primary key names (underlined attributes)
+        - CRITICAL: For foreign key references, use the EXACT same name as the primary key in the referenced entity
+        - CRITICAL: If you see 'CharName' as primary key, reference it as 'CharName', not 'CharName' or any variation
         """
         
         if additional_context:
@@ -215,6 +218,9 @@ class ERDParser:
             from datetime import datetime
             parsed_data.setdefault('metadata', {})['analysis_timestamp'] = datetime.utcnow().isoformat()
             
+            # Auto-correct foreign key references before validation
+            self._auto_correct_foreign_keys(parsed_data)
+            
             return parsed_data
             
         except Exception as e:
@@ -237,6 +243,48 @@ class ERDParser:
         json_str = re.sub(r':\s*"([^"]*)"([^",}\]]*)"', r': "\1\2"', json_str)
         
         return json_str
+    
+    def _auto_correct_foreign_keys(self, schema_data: Dict[str, Any]) -> None:
+        """Auto-correct foreign key references to match actual primary key names"""
+        entities = schema_data.get('entities', [])
+        entity_names = {entity.get('name', '') for entity in entities}
+        
+        print("🔧 Auto-correcting foreign key references...")
+        
+        for entity in entities:
+            entity_name = entity.get('name', '')
+            for attr in entity.get('attributes', []):
+                if attr.get('is_foreign_key', False):
+                    ref_table = attr.get('references_table', '')
+                    ref_column = attr.get('references_column', '')
+                    
+                    if ref_table and ref_column:
+                        target_entity = next((e for e in entities if e.get('name') == ref_table), None)
+                        if target_entity:
+                            target_attrs = [a.get('name', '') for a in target_entity.get('attributes', [])]
+                            
+                            # Auto-correct if not exact match
+                            if ref_column not in target_attrs:
+                                ref_column_lower = ref_column.lower()
+                                similar_attrs = []
+                                for target_attr in target_attrs:
+                                    target_lower = target_attr.lower()
+                                    # Check for common casing patterns
+                                    if (ref_column_lower == target_lower or
+                                        ref_column_lower.replace('_', '') == target_lower.replace('_', '') or
+                                        ref_column_lower.replace('_', '').replace('name', '') == target_lower.replace('_', '').replace('name', '') or
+                                        ref_column_lower in target_lower or target_lower in ref_column_lower):
+                                        similar_attrs.append(target_attr)
+                                
+                                if similar_attrs:
+                                    # Auto-correct the reference
+                                    old_ref = attr['references_column']
+                                    attr['references_column'] = similar_attrs[0]
+                                    print(f"✅ Auto-corrected: {entity_name}.{attr.get('name', '')} -> {ref_table}.{old_ref} -> {ref_table}.{similar_attrs[0]}")
+                                else:
+                                    print(f"❌ Could not auto-correct: {entity_name}.{attr.get('name', '')} -> {ref_table}.{ref_column}")
+        
+        print("🔧 Auto-correction complete!")
     
     async def _process_image_url(self, image_url: str, additional_context: Optional[str] = None) -> Optional[Dict[str, Any]]:
         """Process image from URL"""
