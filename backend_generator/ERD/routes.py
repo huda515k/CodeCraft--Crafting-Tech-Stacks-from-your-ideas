@@ -219,3 +219,73 @@ async def agent_process_erd(
         
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"🤖 AI Agent Error: {str(e)}")
+
+@router.post("/process-with-prompt", response_model=ERDProcessingResponse)
+async def process_erd_with_prompt(
+    file: UploadFile = File(..., description="ERD image file"),
+    additional_context: Optional[str] = None,
+    role_prompt: Optional[str] = None,
+    service = Depends(get_required_erd_service)
+):
+    """
+    🤖 AI Agent: Process ERD with role-based access and business rules prompt
+    
+    This endpoint processes your ERD and applies role-based access control and business rules
+    specified in the prompt. Perfect for generating secure, role-aware backends.
+    """
+    try:
+        # Read file content
+        content = await file.read()
+        
+        # Convert to base64
+        import base64
+        image_data = base64.b64encode(content).decode('utf-8')
+        
+        # Create request with prompt context
+        request = ERDProcessingRequest(
+            image_data=image_data,
+            additional_context=additional_context
+        )
+        
+        # Process with service
+        result = await service.process_erd(request)
+        
+        # If we have a role prompt, analyze it
+        if result.success and role_prompt:
+            try:
+                from backend_generator.PromptAnalysis.services import PromptAnalysisService
+                prompt_service = PromptAnalysisService()
+                
+                # Analyze the role prompt
+                from backend_generator.PromptAnalysis.models import PromptAnalysisRequest
+                prompt_request = PromptAnalysisRequest(
+                    prompt=role_prompt,
+                    erd_schema=result.erd_schema.dict() if result.erd_schema else None
+                )
+                
+                prompt_result = await prompt_service.analyze_prompt(prompt_request)
+                
+                # Add prompt analysis to processing metadata
+                result.processing_metadata = {
+                    **result.processing_metadata,
+                    "role_analysis": {
+                        "roles_found": len(prompt_result.roles),
+                        "business_rules_found": len(prompt_result.business_rules),
+                        "user_access_found": len(prompt_result.user_access),
+                        "has_generated_code": prompt_result.generated_code is not None
+                    }
+                }
+                
+                result.error_message = f"🤖 AI Agent: ERD processed with role-based access control! Found {len(prompt_result.roles)} roles and {len(prompt_result.business_rules)} business rules."
+                
+            except Exception as prompt_error:
+                result.error_message = f"🤖 AI Agent: ERD processed successfully, but role analysis failed: {str(prompt_error)}"
+        elif result.success:
+            result.error_message = "🤖 AI Agent: ERD processed successfully! Ready for backend generation."
+        else:
+            result.error_message = f"🤖 AI Agent: {result.error_message}. Please try a clearer ERD image."
+        
+        return result
+        
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"🤖 AI Agent Error: {str(e)}")

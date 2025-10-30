@@ -18,6 +18,7 @@ load_dotenv()
 from backend_generator.ERD.routes import router as erd_router
 from backend_generator.NodeGen.routes import router as nodegen_router
 from backend_generator.Agent.routes import router as agent_router
+from backend_generator.PromptAnalysis.routes import router as prompt_analysis_router
 
 # Import documentation agent
 from documentation.documentation_agent import DocumentationAgent
@@ -58,6 +59,7 @@ except Exception as e:
 app.include_router(erd_router)
 app.include_router(nodegen_router)
 app.include_router(agent_router)
+app.include_router(prompt_analysis_router)
 
 @app.get("/")
 async def root():
@@ -70,7 +72,8 @@ async def root():
         "services": {
             "erd": "/erd/health",
             "nodegen": "/nodegen/health", 
-            "agent": "/agent/status"
+            "agent": "/agent/status",
+            "prompt_analysis": "/prompt-analysis/health"
         },
         "generators": {
             "ai_advanced": "/nodegen/advanced-upload-erd"
