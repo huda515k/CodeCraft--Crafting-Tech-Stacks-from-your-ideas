@@ -17,7 +17,7 @@ class ERDProcessingService:
         self.converter = JSONConverter()
         self.validator = JSONValidator()
     
-    async def process_erd(self, request: ERDProcessingRequest = None, image_data: bytes = None, additional_context: str = None, model_override: str = None) -> ERDProcessingResponse:
+    async def process_erd(self, request: ERDProcessingRequest = None, image_data: str = None, additional_context: str = None, model_override: str = None) -> ERDProcessingResponse:
         """
         Process ERD image and extract schema
         """

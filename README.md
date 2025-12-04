@@ -62,30 +62,31 @@ uvicorn main:app --host 127.0.0.1 --port 8000
 ## 🎯 Usage
 
 ### Web Interface
-Visit `http://localhost:8000/docs` to access the interactive API documentation.
+The web-facing index and documentation are intentionally simplified to surface only the ERD processing and core generator flows. Visit `http://localhost:8000/docs` for the full API docs (internal), or use the endpoints below for the main UI flows.
 
-### AI Agent Endpoints
+### Exposed Endpoints (UI-focused)
 
-#### 🤖 Upload ERD and Generate Backend
-```bash
-POST /agent/upload-erd
-```
-- Upload an ERD image
-- Get complete Node.js backend automatically
-- Download as intelligently named ZIP file
+#### ERD Processing
+- `POST /erd/upload-image` - Upload ERD Image
+- `POST /erd/validate-schema` - Validate ERD Schema
+- `POST /erd/convert-to-database-schema` - Convert To Database Schema
+- `POST /erd/convert-to-fastapi-schema` - Convert To FastAPI Schema
+- `POST /erd/generate-comprehensive-schema` - Generate Comprehensive Schema
+- `GET /erd/health` - Health Check
 
-#### 📋 Process Schema
-```bash
-POST /agent/process-schema
-```
-- Process existing ERD schema
-- Generate backend from JSON schema
+#### NodeJS Generator
+- `POST /nodegen/advanced-upload-erd` - 🚀 AI-Powered Advanced Generator: Upload ERD Image
 
-#### 🔍 Agent Status
-```bash
-GET /agent/status
-GET /agent/capabilities
-```
+#### LangGraph AI Agent
+- `POST /agent/upload-erd` - 🤖 Upload ERD and Generate Complete Backend
+- `POST /agent/process-schema` - 🤖 Process ERD Schema and Generate Backend
+- `GET /agent/capabilities` - 🤖 Get AI Agent Capabilities
+- `GET /agent/status` - 🤖 Get AI Agent Status
+
+#### Default
+- `GET /` - Root
+- `GET /health` - Health Check
+- `POST /claude-documentation` - Claude Documentation
 
 ## 🏗️ Generated Backend Features
 
@@ -142,20 +143,20 @@ The AI agent automatically detects business domains:
 - **HR ERD** → `hr_management_system_backend.zip`
 - **E-commerce ERD** → `ecommerce_management_system_backend.zip`
 
-## 🔧 API Endpoints
+## 🔧 API Endpoints (UI-focused)
 
 ### ERD Processing
 - `POST /erd/upload-image` - Upload and process ERD image
-- `POST /erd/process-base64` - Process base64 encoded image
+- `POST /erd/validate-schema` - Validate ERD schema
 - `POST /erd/convert-to-database-schema` - Convert to database schema
 - `POST /erd/convert-to-fastapi-schema` - Convert to FastAPI schema
+- `POST /erd/generate-comprehensive-schema` - Generate all schema outputs
 
 ### Node.js Generation
-- `POST /nodegen/generate` - Generate Node.js backend from schema
-- `POST /nodegen/agent-generate` - AI agent backend generation
+- `POST /nodegen/advanced-upload-erd` - Advanced ERD upload for AI-powered Node.js generator
 
 ### AI Agent
-- `POST /agent/upload-erd` - Seamless ERD to backend generation
+- `POST /agent/upload-erd` - ERD to backend generation
 - `POST /agent/process-schema` - Process schema and generate backend
 - `GET /agent/status` - Check agent status
 - `GET /agent/capabilities` - View agent capabilities

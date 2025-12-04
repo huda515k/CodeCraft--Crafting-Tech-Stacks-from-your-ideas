@@ -11,7 +11,7 @@ from datetime import datetime
 from .models import ERDProcessingRequest, ERDProcessingResponse, ERDSchema
 # Lazy imports to speed up startup
 # from .services import ERDProcessingService
-# from .validators import JSONValidator
+from .validators import JSONValidator
 
 router = APIRouter(prefix="/erd", tags=["ERD Processing"])
 
@@ -75,7 +75,7 @@ async def upload_erd_image(
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Error processing image: {str(e)}")
 
-@router.post("/process-base64", response_model=ERDProcessingResponse)
+@router.post("/process-base64", response_model=ERDProcessingResponse, include_in_schema=False)
 async def process_base64_image(
     request: ERDProcessingRequest,
     service = Depends(get_required_erd_service)
@@ -95,28 +95,32 @@ async def process_base64_image(
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Error processing ERD: {str(e)}")
 
-@router.post("/validate-schema")
+@router.post("/validate-schema", include_in_schema=False)
 async def validate_erd_schema(schema_data: dict):
     """
     Validate ERD schema structure
     """
-    errors = JSONValidator.validate_erd_schema(schema_data)
-    
-    if errors:
-        return JSONResponse(
-            status_code=400,
-            content={
-                "valid": False,
-                "errors": errors
-            }
-        )
-    
-    return {
-        "valid": True,
-        "message": "Schema validation passed"
-    }
+    try:
+        validator = JSONValidator()
+        errors = validator.validate_erd_schema(schema_data)
 
-@router.post("/convert-to-database-schema")
+        if errors:
+            return JSONResponse(
+                status_code=400,
+                content={
+                    "valid": False,
+                    "errors": errors
+                }
+            )
+
+        return {
+            "valid": True,
+            "message": "Schema validation passed"
+        }
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Validation error: {str(e)}")
+
+@router.post("/convert-to-database-schema", include_in_schema=False)
 async def convert_to_database_schema(
     erd_schema: ERDSchema,
     service = Depends(get_optional_erd_service)
@@ -134,7 +138,7 @@ async def convert_to_database_schema(
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Error converting schema: {str(e)}")
 
-@router.post("/convert-to-fastapi-schema")
+@router.post("/convert-to-fastapi-schema", include_in_schema=False)
 async def convert_to_fastapi_schema(
     erd_schema: ERDSchema,
     service = Depends(get_optional_erd_service)
@@ -152,7 +156,7 @@ async def convert_to_fastapi_schema(
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Error converting schema: {str(e)}")
 
-@router.post("/generate-comprehensive-schema")
+@router.post("/generate-comprehensive-schema", include_in_schema=False)
 async def generate_comprehensive_schema(
     erd_schema: ERDSchema,
     service = Depends(get_optional_erd_service)
@@ -220,7 +224,7 @@ async def agent_process_erd(
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"🤖 AI Agent Error: {str(e)}")
 
-@router.post("/process-with-prompt", response_model=ERDProcessingResponse)
+@router.post("/process-with-prompt", response_model=ERDProcessingResponse, include_in_schema=False)
 async def process_erd_with_prompt(
     file: UploadFile = File(..., description="ERD image file"),
     additional_context: Optional[str] = None,
