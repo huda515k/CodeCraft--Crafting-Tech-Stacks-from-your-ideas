@@ -2,7 +2,7 @@
 
 from fastapi import APIRouter, HTTPException, UploadFile, File, Depends, Form
 from fastapi.responses import JSONResponse, StreamingResponse
-from typing import Optional
+from typing import Optional, List
 import os
 import base64
 from datetime import datetime
@@ -219,6 +219,127 @@ async def analyze_ui_only(
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Error analyzing UI: {str(e)}")
 
+@router.post("/generate-multi-screen")
+async def generate_multi_screen_app(
+    files: List[UploadFile] = File(..., description="Multiple UI design image files for different screens"),
+    screen_names: Optional[str] = Form(None, description="Comma-separated screen names (e.g., 'Home,Profile,Settings')"),
+    screen_routes: Optional[str] = Form(None, description="Comma-separated routes (e.g., '/,/profile,/settings')"),
+    project_name: str = Form("multi-screen-app", description="Project name"),
+    additional_context: Optional[str] = Form(None, description="Additional context for all screens"),
+    framework: str = Form("react", description="Target framework"),
+    styling_approach: str = Form("css-modules", description="Styling approach"),
+    include_typescript: bool = Form(True, description="Include TypeScript"),
+    service: FrontendGenerationService = Depends(get_frontend_service)
+):
+    """
+    🤖 AI Agent: Generate React app with multiple screens connected via React Router
+    
+    This endpoint:
+    1. Accepts multiple UI design images (one per screen)
+    2. Analyzes each screen using AI
+    3. Generates React components for each screen
+    4. Connects all screens with React Router
+    5. Returns a complete multi-screen React application
+    
+    Features:
+    - 🎨 Multiple screen support
+    - 🔗 React Router integration
+    - 📱 Navigation between screens
+    - 🎯 Shared component library
+    - 💅 Consistent styling across screens
+    - 📦 Complete project structure
+    
+    Example:
+    - Upload 3 images: Home.png, Profile.png, Settings.png
+    - Get a complete app with navigation between all 3 screens
+    """
+    if not files or len(files) == 0:
+        raise HTTPException(
+            status_code=400,
+            detail="At least one image file is required"
+        )
+    
+    if len(files) > 20:
+        raise HTTPException(
+            status_code=400,
+            detail="Maximum 20 screens allowed per project"
+        )
+    
+    # Validate all files
+    allowed_types = ["image/png", "image/jpeg", "image/jpg", "image/gif", "image/bmp"]
+    max_size = 10 * 1024 * 1024  # 10MB per file
+    
+    screen_images = []
+    parsed_screen_names = None
+    parsed_screen_routes = None
+    
+    # Parse screen names and routes
+    if screen_names:
+        parsed_screen_names = [name.strip() for name in screen_names.split(',')]
+    if screen_routes:
+        parsed_screen_routes = [route.strip() for route in screen_routes.split(',')]
+    
+    try:
+        # Process all files
+        for idx, file in enumerate(files):
+            # Validate file type
+            if file.content_type not in allowed_types:
+                raise HTTPException(
+                    status_code=400,
+                    detail=f"File {file.filename}: Unsupported file type. Allowed types: {', '.join(allowed_types)}"
+                )
+            
+            # Check file size
+            file_content = await file.read()
+            if len(file_content) > max_size:
+                raise HTTPException(
+                    status_code=400,
+                    detail=f"File {file.filename}: File size too large. Maximum size is 10MB"
+                )
+            
+            # Convert to base64
+            image_data = base64.b64encode(file_content).decode('utf-8')
+            screen_images.append(image_data)
+        
+        # Generate multi-screen project
+        result = await service.generate_multi_screen_project(
+            screen_images=screen_images,
+            screen_names=parsed_screen_names,
+            screen_routes=parsed_screen_routes,
+            project_name=project_name,
+            additional_context=additional_context,
+            framework=framework,
+            styling_approach=styling_approach,
+            include_typescript=include_typescript
+        )
+        
+        if not result["success"]:
+            raise HTTPException(
+                status_code=400,
+                detail=result.get("error_message", "Multi-screen generation failed")
+            )
+        
+        # Create ZIP file
+        project = result["project"]
+        zip_buffer = service.create_zip_from_project(project)
+        
+        # Generate filename
+        filename = f"{project_name.replace(' ', '_')}_multi_screen.zip"
+        
+        return StreamingResponse(
+            io.BytesIO(zip_buffer.getvalue()),
+            media_type="application/zip",
+            headers={
+                "Content-Disposition": f"attachment; filename={filename}",
+                "X-Screens-Count": str(result.get("screens_count", len(screen_images)))
+            }
+        )
+        
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Error generating multi-screen app: {str(e)}")
+
 @router.get("/health")
 async def health_check():
     """
@@ -234,7 +355,9 @@ async def health_check():
             "React code generation",
             "TypeScript support",
             "CSS modules support",
-            "Tailwind CSS support"
+            "Tailwind CSS support",
+            "Multi-screen app generation",
+            "React Router integration"
         ]
     }
 

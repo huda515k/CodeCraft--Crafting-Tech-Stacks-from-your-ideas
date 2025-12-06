@@ -159,7 +159,18 @@ class ReactCodeGenerator:
         file_ext = "tsx" if self.include_typescript else "jsx"
         
         # Find root components (components without parents)
-        root_components = [c for c in ui_analysis.components if c.parent_id is None]
+        root_components = [c for c in ui_analysis.components if c.parent_id is None or c.parent_id == ""]
+        
+        # If too many root components, try to find the true root (one that contains others)
+        if len(root_components) > 1:
+            # Find component that has the most children or is named like "app", "root", "container", "layout"
+            # Prioritize components that have children and match naming patterns
+            root_components = sorted(root_components, key=lambda c: (
+                len(c.children) if c.children else 0,
+                any(keyword in c.name.lower() for keyword in ['app', 'root', 'container', 'layout', 'main'])
+            ), reverse=True)
+            # Take only the top root component (the one that likely contains all others)
+            root_components = root_components[:1]
         
         imports = []
         components = []
@@ -246,7 +257,8 @@ export default App;
         file_ext = "tsx" if self.include_typescript else "jsx"
         
         # Get the appropriate HTML element for this component type
-        html_element = self._get_html_element_for_component_type(component.type)
+        comp_type_for_html = component.type if component.type else ComponentType.CONTAINER
+        html_element = self._get_html_element_for_component_type(comp_type_for_html)
         is_self_closing = html_element in ["input", "img"]
         
         # Generate props interface if TypeScript and has properties
@@ -286,21 +298,48 @@ export default App;
         if is_self_closing:
             # Self-closing elements (input, img) don't have children content
             content = ""
-        elif component.text_content:
-            # Use text content if available
-            content = f"        {component.text_content}\n"
         elif children_components:
-            # Use child components if available
+            # Use child components if available (children take priority)
+            # DO NOT render text_content if children exist - children should contain the text
+            # This prevents text duplication like "hudaonlinehuda"
             content = "\n".join(children_components)
+        elif component.text_content:
+            # Use text content if available, but clean it first
+            text_content = component.text_content.strip()
+            # Remove duplicate text patterns (e.g., "hudaonlinehuda" -> "huda Online")
+            if text_content:
+                # Remove duplicate consecutive words
+                words = text_content.split()
+                if len(words) > 1:
+                    # Check for simple duplication patterns (e.g., "huda online huda online")
+                    mid = len(words) // 2
+                    if mid > 0 and words[:mid] == words[mid:]:
+                        text_content = " ".join(words[:mid])
+                    # Check for character-level duplication (e.g., "hudaonlinehuda")
+                    elif len(text_content) > 10:
+                        # If text is long and might have character duplication
+                        char_mid = len(text_content) // 2
+                        if char_mid > 0 and text_content[:char_mid].lower() == text_content[char_mid:].lower():
+                            # Split at word boundaries if possible
+                            first_half = text_content[:char_mid].strip()
+                            # Try to add space if it looks like concatenated words
+                            if not ' ' in first_half and len(first_half) > 4:
+                                # Try to intelligently split (e.g., "hudaonline" -> "huda online")
+                                # This is a simple heuristic - could be improved
+                                text_content = first_half
+                # Ensure proper spacing between words
+                text_content = " ".join(text_content.split())
+                content = f"        {text_content}\n"
         else:
             # If no content and no children, add a visible placeholder
             # This ensures the component is visible even if empty
-            if html_element in ["button", "input"]:
+            if html_element in ["button"]:
                 content = f"        {component.name}\n"
             elif html_element in ["h1", "h2", "h3", "h4", "h5", "h6"]:
                 content = f"        {component.name}\n"
             else:
-                content = f"        {component.name}\n"
+                # For containers and other elements, leave empty or add minimal content
+                content = ""
         
         # Generate className based on styling approach
         if self.styling_approach == "css-modules":
@@ -334,7 +373,12 @@ export default App;
         if is_self_closing:
             element_jsx = f"    <{html_element} {className}{attributes} />"
         else:
-            element_jsx = f"    <{html_element} {className}{attributes}>\n{content}\n    </{html_element}>"
+            # For elements that should have text content, ensure it's rendered
+            if content.strip():
+                element_jsx = f"    <{html_element} {className}{attributes}>\n{content}\n    </{html_element}>"
+            else:
+                # Empty elements still need to be rendered for layout
+                element_jsx = f"    <{html_element} {className}{attributes}>\n    </{html_element}>"
         
         if self.include_typescript:
             # Only add props interface and type if there are actual props
@@ -366,49 +410,90 @@ export default {comp_name};
         
         css_rules = [f".{comp_name} {{"]
         
-        # Ensure component has display property
-        if style and style.layout_type:
-            if style.layout_type.value == "flex":
-                css_rules.append("  display: flex;")
-            elif style.layout_type.value == "grid":
-                css_rules.append("  display: grid;")
-            else:
-                css_rules.append("  display: block;")
-        else:
-            # Default to block if no layout type specified
-            css_rules.append("  display: block;")
-        
-        # Add position if available (check both component.position and style.position)
+        # Add position dimensions FIRST (before display) to ensure proper sizing
         pos = None
         if component.position:
             pos = component.position
         elif style and style.position:
             pos = style.position
         
+        # Determine component type early and safely
+        comp_type = None
+        if component.type:
+            comp_type = component.type.value if hasattr(component.type, 'value') else str(component.type)
+        else:
+            comp_type = 'container'  # Default fallback
+        
+        is_layout_component = comp_type in ['container', 'sidebar', 'header', 'footer', 'navbar', 'main-chat-area', 'app-root', 'chat-sidebar', 'chat-content']
+        is_flex_container = comp_type in ['container', 'sidebar', 'header', 'footer', 'navbar', 'main-chat-area', 'chat-sidebar', 'chat-content']
+        
         if pos:
-            if pos.x is not None:
-                css_rules.append(f"  position: relative;")
-                x_value = self._format_css_dimension(pos.x)
-                css_rules.append(f"  left: {x_value};")
-            if pos.y is not None:
-                y_value = self._format_css_dimension(pos.y)
-                css_rules.append(f"  top: {y_value};")
             if pos.width is not None:
                 width_value = self._format_css_dimension(pos.width)
                 css_rules.append(f"  width: {width_value};")
             if pos.height is not None:
                 height_value = self._format_css_dimension(pos.height)
                 css_rules.append(f"  height: {height_value};")
+            
+            # NEVER use absolute positioning for layout components - they should use flexbox
+            # Only use position offsets for small UI elements like icons, badges, etc.
+            if not is_layout_component and not is_flex_container:
+                # Only add position/left/top for small non-layout components
+                # But even then, prefer padding/margin over absolute positioning
+                if pos.x is not None and pos.x != 0 and pos.x < 100:  # Only for small offsets
+                    # Use margin-left instead of absolute positioning
+                    x_value = self._format_css_dimension(pos.x)
+                    css_rules.append(f"  margin-left: {x_value};")
+                if pos.y is not None and pos.y != 0 and pos.y < 100:  # Only for small offsets
+                    y_value = self._format_css_dimension(pos.y)
+                    css_rules.append(f"  margin-top: {y_value};")
+        
+        # Ensure component has display property
+        if style and style.layout_type:
+            layout_type_val = style.layout_type.value if hasattr(style.layout_type, 'value') else str(style.layout_type) if style.layout_type else None
+            if layout_type_val == "flex":
+                css_rules.append("  display: flex;")
+            elif layout_type_val == "grid":
+                css_rules.append("  display: grid;")
+            else:
+                css_rules.append("  display: block;")
+        else:
+            # Default based on component type - containers should be flex/block
+            if is_flex_container:
+                css_rules.append("  display: flex;")
+            else:
+                css_rules.append("  display: block;")
         
         if style:
             if style.background_color:
                 # Handle different color formats (rgba, rgb, hex)
+                bg_color = None
                 if style.background_color.rgba:
-                    css_rules.append(f"  background-color: {style.background_color.rgba};")
+                    bg_color = style.background_color.rgba
                 elif style.background_color.rgb:
-                    css_rules.append(f"  background-color: {style.background_color.rgb};")
+                    bg_color = style.background_color.rgb
                 elif style.background_color.hex:
-                    css_rules.append(f"  background-color: {style.background_color.hex};")
+                    bg_color = style.background_color.hex
+                
+                if bg_color:
+                    # Check if it's a gradient (invalid as background-color)
+                    bg_str = str(bg_color).lower()
+                    if 'gradient' in bg_str:
+                        # Use background instead of background-color for gradients
+                        css_rules.append(f"  background: {bg_color};")
+                    else:
+                        css_rules.append(f"  background-color: {bg_color};")
+            # Also check if component name suggests it needs a background
+            elif is_layout_component:
+                # For layout components without explicit background, check component name
+                comp_name_lower = component.name.lower()
+                if 'header' in comp_name_lower and 'sidebar' in comp_name_lower:
+                    # Sidebar header should have dark background
+                    css_rules.append("  background-color: #000000;")
+                elif 'sidebar' in comp_name_lower:
+                    # Sidebar should have a background (check if it's dark or light)
+                    # Default to a light gray if not specified
+                    pass  # Let it inherit or use default
             
             if style.typography:
                 typo = style.typography
@@ -437,6 +522,10 @@ export default {comp_name};
                     css_rules.append(f"  margin: {spacing.margin};")
                 if spacing.gap:
                     css_rules.append(f"  gap: {spacing.gap};")
+            # For flex containers without spacing, ensure proper layout
+            elif is_flex_container:
+                # Add default gap for flex containers to space children
+                css_rules.append("  gap: 0;")  # Can be overridden
             
             if style.border:
                 border = style.border
@@ -478,32 +567,101 @@ export default {comp_name};
                     css_rules.append(f"  box-shadow: {' '.join(shadow_parts)};")
             
             # Layout type already handled above, but add flex/grid properties if needed
+            layout_type_val = None
             if style.layout_type:
-                if style.layout_type.value == "flex":
+                layout_type_val = style.layout_type.value if hasattr(style.layout_type, 'value') else str(style.layout_type) if style.layout_type else None
+                if layout_type_val == "flex":
                     # display: flex already added above
                     if style.flex_direction:
                         css_rules.append(f"  flex-direction: {style.flex_direction};")
+                    else:
+                        # Default flex-direction based on component type (comp_type already defined above)
+                        if comp_type in ['sidebar', 'navbar']:
+                            css_rules.append("  flex-direction: column;")
+                        else:
+                            css_rules.append("  flex-direction: row;")
                     if style.justify_content:
                         css_rules.append(f"  justify-content: {style.justify_content};")
                     if style.align_items:
                         css_rules.append(f"  align-items: {style.align_items};")
-                elif style.layout_type.value == "grid":
+                elif layout_type_val == "grid":
                     # display: grid already added above
                     if style.grid_template_columns:
                         css_rules.append(f"  grid-template-columns: {style.grid_template_columns};")
                     if style.grid_template_rows:
                         css_rules.append(f"  grid-template-rows: {style.grid_template_rows};")
+            else:
+                # If no layout_type but component is flex, add default flex-direction
+                # Check if we already have display: flex (from above)
+                has_flex_display = any('display: flex' in rule for rule in css_rules)
+                if has_flex_display:
+                    if comp_type in ['sidebar', 'navbar']:
+                        css_rules.append("  flex-direction: column;")
+                    elif comp_type in ['main-chat-area', 'chat-content']:
+                        css_rules.append("  flex-direction: column;")
+                    elif comp_type in ['container', 'app-root']:
+                        # Check children to determine direction
+                        # If it has sidebar and main area, use row
+                        if component.children and len(component.children) >= 2:
+                            css_rules.append("  flex-direction: row;")
+                        else:
+                            css_rules.append("  flex-direction: column;")
+                    else:
+                        # Default to column for most containers
+                        css_rules.append("  flex-direction: column;")
             
+            # Apply width/height from style (only if not already set from position)
             if style.width:
-                width_value = self._format_css_dimension(style.width) if isinstance(style.width, (int, float)) else str(style.width)
-                css_rules.append(f"  width: {width_value};")
+                # Only add if position.width wasn't set
+                if not pos or pos.width is None:
+                    width_value = self._format_css_dimension(style.width) if isinstance(style.width, (int, float)) else str(style.width)
+                    css_rules.append(f"  width: {width_value};")
             if style.height:
-                height_value = self._format_css_dimension(style.height) if isinstance(style.height, (int, float)) else str(style.height)
-                css_rules.append(f"  height: {height_value};")
+                # Only add if position.height wasn't set
+                if not pos or pos.height is None:
+                    height_value = self._format_css_dimension(style.height) if isinstance(style.height, (int, float)) else str(style.height)
+                    css_rules.append(f"  height: {height_value};")
             if style.z_index is not None:
                 css_rules.append(f"  z-index: {style.z_index};")
             if style.opacity is not None:
                 css_rules.append(f"  opacity: {style.opacity};")
+        
+        # Ensure layout components (header, footer, navbar) have proper width
+        if comp_type in ['header', 'footer', 'navbar']:
+            # Check if width is already set
+            has_width = False
+            if pos and pos.width:
+                has_width = True
+            if style and style.width:
+                has_width = True
+            if not has_width:
+                # Header/footer should span full width
+                css_rules.append("  width: 100%;")
+            # Ensure they don't overflow
+            css_rules.append("  box-sizing: border-box;")
+            # Header/footer should be at top/bottom
+            if comp_type == 'header':
+                css_rules.append("  position: relative;")
+            elif comp_type == 'footer':
+                css_rules.append("  position: relative;")
+        
+        # Ensure component has minimum visibility - add min-height for containers
+        # Use comp_type already defined above, or get it safely
+        if not comp_type:
+            comp_type = component.type.value if (component.type and hasattr(component.type, 'value')) else (str(component.type) if component.type else 'container')
+        if comp_type in ['container', 'sidebar', 'header', 'footer', 'navbar', 'main-chat-area', 'app-root']:
+            # Check if height is already set
+            has_height = False
+            if pos and pos.height:
+                has_height = True
+            if style and style.height:
+                has_height = True
+            # For header/footer, use auto height unless specified
+            if comp_type in ['header', 'footer']:
+                if not has_height:
+                    css_rules.append("  height: auto;")
+            elif not has_height:
+                css_rules.append("  min-height: 100vh;")
         
         css_rules.append("}")
         return "\n".join(css_rules)
@@ -559,24 +717,43 @@ export default {comp_name};
         css.append("")
         css.append("#root {")
         css.append("  width: 100%;")
+        css.append("  min-width: 100vw;")  # Ensure root spans full viewport
         css.append("  min-height: 100vh;")
+        css.append("  margin: 0;")
+        css.append("  padding: 0;")
+        css.append("  box-sizing: border-box;")
+        css.append("  overflow-x: hidden;")  # Prevent horizontal scroll
         if ui_analysis.layout:
             if ui_analysis.layout.width:
-                css.append(f"  max-width: {ui_analysis.layout.width};")
-                css.append("  margin: 0 auto;")
+                # Only set max-width if it's less than 100vw
+                max_width = ui_analysis.layout.width
+                if isinstance(max_width, str) and 'vw' not in max_width and '100%' not in max_width:
+                    css.append(f"  max-width: {max_width};")
+                    css.append("  margin: 0 auto;")
         css.append("}")
         
         css.append("")
         css.append(".app {")
         css.append("  width: 100%;")
+        css.append("  min-width: 100vw;")  # Ensure app spans full viewport width
         css.append("  min-height: 100vh;")
+        css.append("  display: flex;")
+        css.append("  flex-direction: column;")  # Default to column for header/content/footer layout
+        css.append("  box-sizing: border-box;")
+        css.append("  overflow-x: hidden;")  # Prevent horizontal overflow
         
-        # Apply layout type
+        # Apply layout type - default to flex with column direction for header/content/footer layouts
         if ui_analysis.layout and ui_analysis.layout.type:
             layout_type = ui_analysis.layout.type.value if hasattr(ui_analysis.layout.type, 'value') else str(ui_analysis.layout.type)
             if layout_type == "flex":
                 css.append("  display: flex;")
-                # Apply flex direction if available
+                # Check if layout has sidebar (then use row), otherwise use column
+                has_sidebar = any('sidebar' in str(c.type).lower() or 'sidebar' in c.name.lower() 
+                                 for c in ui_analysis.components if c.parent_id is None)
+                if has_sidebar:
+                    css.append("  flex-direction: row;")
+                else:
+                    css.append("  flex-direction: column;")
                 if ui_analysis.layout.width:
                     css.append(f"  width: {ui_analysis.layout.width};")
                 if ui_analysis.layout.height:
@@ -584,11 +761,42 @@ export default {comp_name};
             elif layout_type == "grid":
                 css.append("  display: grid;")
             else:
-                css.append("  display: block;")
+                css.append("  display: flex;")
+                css.append("  flex-direction: column;")
+        else:
+            # Default to flex column for header/content/footer layouts
+            css.append("  display: flex;")
+            css.append("  flex-direction: column;")
         
         if ui_analysis.layout:
             if ui_analysis.layout.padding:
                 css.append(f"  padding: {ui_analysis.layout.padding};")
+            if ui_analysis.layout.background_color:
+                # Apply layout background color
+                bg_color = None
+                if ui_analysis.layout.background_color.rgba:
+                    bg_color = ui_analysis.layout.background_color.rgba
+                elif ui_analysis.layout.background_color.rgb:
+                    bg_color = ui_analysis.layout.background_color.rgb
+                elif ui_analysis.layout.background_color.hex:
+                    bg_color = ui_analysis.layout.background_color.hex
+                if bg_color:
+                    css.append(f"  background-color: {bg_color};")
+        css.append("}")
+        
+        # Add specific styles for header and footer to ensure they fit
+        css.append("")
+        css.append("/* Ensure header and footer span full width */")
+        css.append("[class*='header'], [class*='Header'] {")
+        css.append("  width: 100%;")
+        css.append("  max-width: 100vw;")
+        css.append("  box-sizing: border-box;")
+        css.append("}")
+        css.append("")
+        css.append("[class*='footer'], [class*='Footer'] {")
+        css.append("  width: 100%;")
+        css.append("  max-width: 100vw;")
+        css.append("  box-sizing: border-box;")
         css.append("}")
         
         return "\n".join(css)
@@ -666,7 +874,7 @@ export default defineConfig({
     
     def _generate_readme(self, project_name: str, ui_analysis: UIAnalysis) -> str:
         """Generate README.md"""
-        components_list = "\n".join([f"- {c.name} ({c.type.value})" for c in ui_analysis.components])
+        components_list = "\n".join([f"- {c.name} ({c.type.value if c.type and hasattr(c.type, 'value') else str(c.type) if c.type else 'unknown'})" for c in ui_analysis.components])
         
         return f"""# {project_name}
 

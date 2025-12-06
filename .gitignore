@@ -71,3 +71,25 @@ yarn-error.log*
 # Test files
 test_*/
 *_test.py
+
+# UI and generated files
+codecraft-ui/**/node_modules/
+codecraft-ui/**/dist/
+codecraft-ui/**/.env
+codecraft-ui/**/.env.local
+codecraft-ui/**/*.log
+codecraft-ui/**/.DS_Store
+codecraft-ui/**/.vite/
+
+# Unnecessary folders
+gemini-cli/
+outputs/
+sample ui images/
+*.zip
+*.bak
+
+# Test and generation scripts (optional - uncomment if you don't want to commit these)
+# test_complete_generation.py
+# test_ui_generation.py
+# generate_complete_app.py
+# generate_social_network_app.py
