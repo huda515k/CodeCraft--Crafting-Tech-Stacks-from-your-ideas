@@ -32,19 +32,29 @@ class ERDProcessingService:
             
             # Set model override if provided
             if model_override:
-                self.parser.model_name = model_override
+                # Update the wrapper's model
+                self.parser.gemini.model = model_override
             
             # Parse the ERD image
-            parsed_data = await self.parser.parse_erd_image(
+            try:
+                parsed_data = await self.parser.parse_erd_image(
                 image_data=image_data,
                 image_url=image_url,
                 additional_context=additional_context
             )
+            except Exception as parse_error:
+                # Catch and return detailed error
+                error_msg = str(parse_error)
+                print(f"❌ ERD parsing exception: {error_msg}")
+                return ERDProcessingResponse(
+                    success=False,
+                    error_message=f"ERD parsing failed: {error_msg}. Please check the image quality and ensure Gemini CLI is properly authenticated."
+                )
             
             if not parsed_data:
                 return ERDProcessingResponse(
                     success=False,
-                    error_message="Failed to parse ERD image"
+                    error_message="Failed to parse ERD image. The parser returned no data. Please check the image quality and try again."
                 )
             
             # Convert to ERD schema
@@ -75,6 +85,10 @@ class ERDProcessingService:
             )
             
         except Exception as e:
+            import traceback
+            error_trace = traceback.format_exc()
+            print(f"ERD Processing Error: {str(e)}")
+            print(f"Traceback: {error_trace}")
             return ERDProcessingResponse(
                 success=False,
                 error_message=f"Processing error: {str(e)}"

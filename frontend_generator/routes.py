@@ -10,6 +10,7 @@ import io
 
 from .models import UIProcessingRequest, UIProcessingResponse
 from .services import FrontendGenerationService
+from .langgraph_agent import LangGraphFrontendAgent
 
 router = APIRouter(prefix="/frontend", tags=["Frontend Generation"])
 
@@ -20,6 +21,14 @@ def get_frontend_service():
     if not gemini_api_key:
         raise HTTPException(status_code=500, detail="Gemini API key not configured")
     return FrontendGenerationService(gemini_api_key)
+
+# Dependency injection for LangGraph frontend agent
+def get_langgraph_frontend_agent():
+    """Get LangGraph frontend agent instance"""
+    gemini_api_key = os.getenv("GEMINI_API_KEY")
+    if not gemini_api_key:
+        raise HTTPException(status_code=500, detail="Gemini API key not configured")
+    return LangGraphFrontendAgent(gemini_api_key)
 
 @router.post("/upload-ui", response_model=UIProcessingResponse)
 async def upload_ui_image(
@@ -83,6 +92,7 @@ async def generate_react_from_ui(
     framework: str = Form("react", description="Target framework"),
     styling_approach: str = Form("css-modules", description="Styling approach"),
     include_typescript: bool = Form(True, description="Include TypeScript"),
+    use_ai: bool = Form(False, description="Use AI-powered code generator (LangGraph agent) for better UI matching"),
     service: FrontendGenerationService = Depends(get_frontend_service)
 ):
     """
@@ -129,7 +139,8 @@ async def generate_react_from_ui(
             additional_context=additional_context,
             framework=framework,
             styling_approach=styling_approach,
-            include_typescript=include_typescript
+            include_typescript=include_typescript,
+            use_ai=use_ai
         )
         
         if not result["success"]:
@@ -229,6 +240,7 @@ async def generate_multi_screen_app(
     framework: str = Form("react", description="Target framework"),
     styling_approach: str = Form("css-modules", description="Styling approach"),
     include_typescript: bool = Form(True, description="Include TypeScript"),
+    use_ai: bool = Form(False, description="Use AI-powered code generator (LangGraph agent) for better UI matching"),
     service: FrontendGenerationService = Depends(get_frontend_service)
 ):
     """
@@ -310,7 +322,8 @@ async def generate_multi_screen_app(
             additional_context=additional_context,
             framework=framework,
             styling_approach=styling_approach,
-            include_typescript=include_typescript
+            include_typescript=include_typescript,
+            use_ai=use_ai
         )
         
         if not result["success"]:
@@ -340,6 +353,256 @@ async def generate_multi_screen_app(
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Error generating multi-screen app: {str(e)}")
 
+@router.post("/agent/generate-multi-screen", summary="🤖 AI Agent: Upload Multiple UI Screens and Generate Complete Multi-Screen React App")
+async def agent_generate_multi_screen_react(
+    files: List[UploadFile] = File(..., description="Multiple UI design image files for different screens"),
+    screen_names: Optional[str] = Form(None, description="Comma-separated screen names (e.g., 'Home,Profile,Settings')"),
+    screen_routes: Optional[str] = Form(None, description="Comma-separated routes (e.g., '/,/profile,/settings')"),
+    project_name: str = Form("multi-screen-app", description="Project name"),
+    additional_context: Optional[str] = Form(None, description="Additional context or instructions for all screens"),
+    framework: str = Form("react", description="Target framework"),
+    styling_approach: str = Form("css-modules", description="Styling approach"),
+    include_typescript: bool = Form(True, description="Include TypeScript"),
+    agent_instance: LangGraphFrontendAgent = Depends(get_langgraph_frontend_agent)
+):
+    """
+    🤖 LangGraph AI Agent: Upload Multiple UI Screens and Get Complete Multi-Screen React App!
+    
+    This endpoint uses the LangGraph AI agent for intelligent multi-screen code generation:
+    1. Upload multiple UI design images (one per screen)
+    2. AI analyzes each screen and extracts component structure
+    3. AI generates structured React code for each screen
+    4. AI connects all screens with React Router
+    5. Downloads complete multi-screen project as ZIP
+    
+    Features:
+    - 🎨 AI-powered component generation for each screen
+    - 🔗 Automatic React Router integration
+    - 📱 Navigation between all screens
+    - 🎯 Better UI matching with structured code
+    - 📦 Complete React project structure
+    - 💅 CSS modules or Tailwind support
+    - 📘 TypeScript support
+    - 🔧 Production-ready code
+    
+    Example:
+    - Upload 3 images: Home.png, Profile.png, Settings.png
+    - Screen names: "Home,Profile,Settings"
+    - Routes: "/,/profile,/settings"
+    - Get a complete app with navigation between all 3 screens!
+    
+    No manual steps required - the AI agent handles everything!
+    """
+    if not files or len(files) == 0:
+        raise HTTPException(
+            status_code=400,
+            detail="At least one image file is required"
+        )
+    
+    if len(files) > 20:
+        raise HTTPException(
+            status_code=400,
+            detail="Maximum 20 screens allowed per project"
+        )
+    
+    # Validate all files
+    allowed_types = ["image/png", "image/jpeg", "image/jpg", "image/gif", "image/bmp"]
+    max_size = 10 * 1024 * 1024  # 10MB per file
+    
+    screen_images = []
+    parsed_screen_names = None
+    parsed_screen_routes = None
+    
+    # Parse screen names and routes
+    if screen_names:
+        parsed_screen_names = [name.strip() for name in screen_names.split(',')]
+    if screen_routes:
+        parsed_screen_routes = [route.strip() for route in screen_routes.split(',')]
+    
+    try:
+        # Process all files
+        for idx, file in enumerate(files):
+            # Validate file type
+            if file.content_type not in allowed_types:
+                raise HTTPException(
+                    status_code=400,
+                    detail=f"Unsupported file type for file {idx + 1}: {file.content_type}. Allowed types: {', '.join(allowed_types)}"
+                )
+            
+            # Check file size
+            file_content = await file.read()
+            if len(file_content) > max_size:
+                raise HTTPException(
+                    status_code=400,
+                    detail=f"File {idx + 1} is too large. Maximum size is 10MB per file"
+                )
+            
+            # Convert to base64
+            image_data = base64.b64encode(file_content).decode('utf-8')
+            screen_images.append(image_data)
+        
+        # Ensure screen names and routes match number of files
+        if parsed_screen_names and len(parsed_screen_names) != len(screen_images):
+            raise HTTPException(
+                status_code=400,
+                detail=f"Number of screen names ({len(parsed_screen_names)}) must match number of files ({len(screen_images)})"
+            )
+        
+        if parsed_screen_routes and len(parsed_screen_routes) != len(screen_images):
+            raise HTTPException(
+                status_code=400,
+                detail=f"Number of routes ({len(parsed_screen_routes)}) must match number of files ({len(screen_images)})"
+            )
+        
+        # Process with LangGraph agent
+        result = await agent_instance.process_multi_ui_to_react(
+            screen_images=screen_images,
+            screen_names=parsed_screen_names,
+            screen_routes=parsed_screen_routes,
+            project_name=project_name,
+            additional_context=additional_context,
+            include_typescript=include_typescript,
+            styling_approach=styling_approach
+        )
+        
+        if not result["success"]:
+            raise HTTPException(
+                status_code=400,
+                detail=result.get("error_message", "AI agent multi-screen generation failed")
+            )
+        
+        # Create ZIP file from project files
+        from .models import GeneratedProject
+        from .services import FrontendGenerationService
+        
+        project = GeneratedProject(
+            project_name=result.get("project_name", project_name),
+            files=result["project_files"],
+            metadata={
+                "framework": framework,
+                "styling_approach": styling_approach,
+                "typescript": include_typescript,
+                "generation_method": "ai_langgraph_agent",
+                "screens_count": result.get("screens_count", len(screen_images))
+            }
+        )
+        
+        # Create service instance just for ZIP creation
+        service = FrontendGenerationService(os.getenv("GEMINI_API_KEY"))
+        zip_buffer = service.create_zip_from_project(project)
+        
+        # Generate filename
+        filename = f"{project_name.replace(' ', '_')}_multi_screen_frontend.zip"
+        
+        return StreamingResponse(
+            io.BytesIO(zip_buffer.getvalue()),
+            media_type="application/zip",
+            headers={"Content-Disposition": f"attachment; filename={filename}"}
+        )
+        
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"🤖 AI Agent Multi-Screen Error: {str(e)}")
+
+@router.post("/agent/generate-react")
+async def agent_generate_react_from_ui(
+    file: UploadFile = File(..., description="UI design image file"),
+    additional_context: Optional[str] = Form(None, description="Additional context or instructions"),
+    project_name: str = Form("react-app", description="Project name"),
+    framework: str = Form("react", description="Target framework"),
+    styling_approach: str = Form("css-modules", description="Styling approach"),
+    include_typescript: bool = Form(True, description="Include TypeScript"),
+    agent_instance: LangGraphFrontendAgent = Depends(get_langgraph_frontend_agent)
+):
+    """
+    🤖 LangGraph AI Agent: Upload UI and get complete React app automatically!
+    
+    This endpoint uses the LangGraph AI agent for intelligent code generation:
+    1. Upload your UI design image
+    2. AI analyzes and extracts component structure
+    3. AI generates structured React code that matches the UI
+    4. Downloads complete project as ZIP
+    
+    Features:
+    - 🎨 AI-powered component generation
+    - 🎯 Better UI matching with structured code
+    - 📦 Complete React project structure
+    - 💅 CSS modules or Tailwind support
+    - 📘 TypeScript support
+    - 🔧 Production-ready code
+    
+    No manual steps required - the AI agent handles everything!
+    """
+    # Validate file type
+    allowed_types = ["image/png", "image/jpeg", "image/jpg", "image/gif", "image/bmp"]
+    if file.content_type not in allowed_types:
+        raise HTTPException(
+            status_code=400,
+            detail=f"Unsupported file type. Allowed types: {', '.join(allowed_types)}"
+        )
+    
+    # Check file size
+    max_size = 10 * 1024 * 1024  # 10MB
+    file_content = await file.read()
+    if len(file_content) > max_size:
+        raise HTTPException(
+            status_code=400,
+            detail="File size too large. Maximum size is 10MB"
+        )
+    
+    try:
+        # Convert to base64
+        image_data = base64.b64encode(file_content).decode('utf-8')
+        
+        # Process with LangGraph agent
+        result = await agent_instance.process_ui_to_react(
+            image_data=image_data,
+            project_name=project_name,
+            additional_context=additional_context,
+            include_typescript=include_typescript,
+            styling_approach=styling_approach
+        )
+        
+        if not result["success"]:
+            raise HTTPException(
+                status_code=400,
+                detail=result.get("error_message", "AI agent generation failed")
+            )
+        
+        # Create ZIP file from project files
+        from .models import GeneratedProject
+        from .services import FrontendGenerationService
+        
+        project = GeneratedProject(
+            project_name=result.get("project_name", project_name),
+            files=result["project_files"],
+            metadata={
+                "framework": framework,
+                "styling_approach": styling_approach,
+                "typescript": include_typescript,
+                "generation_method": "ai_langgraph_agent"
+            }
+        )
+        
+        # Create service instance just for ZIP creation
+        service = FrontendGenerationService(os.getenv("GEMINI_API_KEY"))
+        zip_buffer = service.create_zip_from_project(project)
+        
+        # Generate filename
+        filename = f"{project_name.replace(' ', '_')}_ai_frontend.zip"
+        
+        return StreamingResponse(
+            io.BytesIO(zip_buffer.getvalue()),
+            media_type="application/zip",
+            headers={"Content-Disposition": f"attachment; filename={filename}"}
+        )
+        
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"🤖 AI Agent Error: {str(e)}")
+
 @router.get("/health")
 async def health_check():
     """
@@ -357,7 +620,19 @@ async def health_check():
             "CSS modules support",
             "Tailwind CSS support",
             "Multi-screen app generation",
-            "React Router integration"
+            "React Router integration",
+            "AI-powered code generation (LangGraph agent)"
+        ],
+        "endpoints": {
+            "regular": [
+                "/frontend/upload-ui",
+                "/frontend/generate-react",
+                "/frontend/analyze-ui-only",
+                "/frontend/generate-multi-screen"
+            ],
+            "ai_agent": [
+                "/frontend/agent/generate-react"
         ]
+        }
     }
 

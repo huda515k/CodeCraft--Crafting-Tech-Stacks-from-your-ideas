@@ -1231,8 +1231,43 @@ router.get('/health', (req, res) => {
 export default router;
 """
         
+        # Create routes directory
+        routes_dir = os.path.join(root, "src", "routes")
+        os.makedirs(routes_dir, exist_ok=True)
+        
+        # Write main routes index
         with open(os.path.join(routes_dir, "index.js"), "w", encoding="utf-8") as f:
             f.write(routes_content)
+        
+        # Write individual route files for each entity
+        for entity in erd_schema.entities:
+            route_name = entity.name.lower()
+            entity_routes_content = f"""import express from 'express';
+import {{ {entity.name}Controller }} from '../controllers/{entity.name.lower()}.controller.js';
+import {{ logger }} from '../config/logger.js';
+
+const router = express.Router();
+const controller = new {entity.name}Controller();
+
+// GET / - Get all {entity.name.lower()}s
+router.get('/', controller.getAll);
+
+// GET /:id - Get {entity.name.lower()} by ID
+router.get('/:id', controller.getById);
+
+// POST / - Create new {entity.name.lower()}
+router.post('/', controller.create);
+
+// PUT /:id - Update {entity.name.lower()}
+router.put('/:id', controller.update);
+
+// DELETE /:id - Delete {entity.name.lower()}
+router.delete('/:id', controller.delete);
+
+export default router;
+"""
+            with open(os.path.join(routes_dir, f"{route_name}.routes.js"), "w", encoding="utf-8") as f:
+                f.write(entity_routes_content)
 
     def _write_services(self, root: str, erd_schema: ERDSchema) -> None:
         """Write service files based on ERD entities"""

@@ -16,7 +16,7 @@ class LangGraphCodeCraftAgent:
     def __init__(self, gemini_api_key: str):
         self.gemini_api_key = gemini_api_key
         self.llm = ChatGoogleGenerativeAI(
-            model="gemini-flash-latest",
+            model="gemini-flash-latest",  # Use gemini-flash-latest directly
             google_api_key=gemini_api_key,
             temperature=0.1
         )

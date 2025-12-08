@@ -6,23 +6,29 @@ import base64
 from io import BytesIO
 from PIL import Image
 import os
+import sys
+from pathlib import Path
 from typing import Dict, Any, Optional
-import google.generativeai as genai
+
+# Add backend directory to path to import wrapper
+sys.path.insert(0, str(Path(__file__).parent.parent / "backend_generator"))
+from utils.gemini_wrapper import GeminiWrapper
 from .models import UIAnalysis
 
 class UIParser:
-    """AI-powered UI parsing using Gemini API"""
+    """AI-powered UI parsing using Gemini API or CLI (auto-detected)"""
     
     def __init__(self, api_key: str):
         if not api_key:
             raise ValueError("Gemini API key is required. Please set GEMINI_API_KEY environment variable.")
         self.api_key = api_key
         try:
-            genai.configure(api_key=api_key)
+            # Use wrapper (auto-detects CLI or API)
+            # Default to flash-latest for API compatibility
             model_name = os.getenv('GEMINI_MODEL', 'gemini-flash-latest')
-            self.model = genai.GenerativeModel(model_name)
+            self.gemini = GeminiWrapper(api_key=api_key, model=model_name)
         except Exception as e:
-            raise ValueError(f"Failed to initialize Gemini model: {str(e)}. Please check your API key.")
+            raise ValueError(f"Failed to initialize Gemini: {str(e)}. Please check your API key.")
     
     async def parse_ui_image(
         self, 
@@ -37,6 +43,29 @@ class UIParser:
             if image_data:
                 # Decode base64 image
                 image_bytes = base64.b64decode(image_data)
+                
+                # Optimize image to reduce processing time
+                # Resize if too large (max 2048px on longest side for UI analysis)
+                try:
+                    img = Image.open(BytesIO(image_bytes))
+                    original_size = img.size
+                    max_dimension = 2048  # Gemini can handle up to 2048px well
+                    
+                    if max(original_size) > max_dimension:
+                        print(f"📐 Resizing image from {original_size} to max {max_dimension}px for faster processing...")
+                        # Calculate new size maintaining aspect ratio
+                        ratio = max_dimension / max(original_size)
+                        new_size = (int(original_size[0] * ratio), int(original_size[1] * ratio))
+                        img = img.resize(new_size, Image.Resampling.LANCZOS)
+                        
+                        # Convert back to bytes
+                        output = BytesIO()
+                        img_format = img.format or 'PNG'
+                        img.save(output, format=img_format, optimize=True)
+                        image_bytes = output.getvalue()
+                        print(f"✅ Image resized to {img.size}, size reduced to {len(image_bytes)} bytes")
+                except Exception as resize_error:
+                    print(f"⚠️  Could not resize image: {resize_error}, using original")
                 
                 # Create prompt for UI analysis
                 prompt = self._create_ui_analysis_prompt(additional_context)
@@ -195,24 +224,38 @@ Return the result as a valid JSON object with this structure:
     }
 }
 
-Important guidelines:
-- Be extremely precise with pixel measurements
-- Extract exact color hex codes
-- Identify all components hierarchically
-- Capture all styling details accurately
-- Use consistent naming conventions (camelCase for component names)
-- Identify reusable components vs one-off components
-- Note any interactive states (hover, active, disabled)
-- If text is visible, extract it exactly
-- Identify layout patterns (flexbox, grid, absolute positioning)
-- Ensure all JSON is valid and properly formatted
-- Be thorough - this will be used to generate pixel-perfect React code
+CRITICAL REQUIREMENTS FOR EXACT UI-TO-REACT MAPPING:
+- Extract EXACT pixel measurements (x, y, width, height) for EVERY component - these will be used for pixel-perfect positioning
+- Extract EXACT color hex codes from the image - use color picker values, not approximations
+- Map EVERY visible element - buttons, text, images, icons, containers, all must be identified
+- Preserve EXACT positioning - if an element is at x:100, y:200, capture those exact values
+- Capture EXACT spacing - padding, margin, gap values must match the design
+- Extract EXACT typography - font family, size, weight, line height, color
+- Preserve EXACT layout structure - flexbox/grid properties, alignment, direction
+- Map ALL colors accurately - background colors, text colors, border colors, shadow colors
+- Identify component hierarchy correctly - parent-child relationships must be accurate
+- Extract text content exactly as shown in the UI
+- This code will generate React components that MUST match the UI design pixel-perfectly
+
+CRITICAL FOR MULTI-SCREEN APPS:
+- Each screen should be analyzed as a COMPLETE, STANDALONE page
+- The root component should contain ALL visible elements from the screen
+- DO NOT create placeholder components - every visible element must be mapped
+- Ensure the main container spans the full viewport (width: 100vw or 100%, height: 100vh or auto)
+- All elements should be properly nested within the root container
+- Text content must match EXACTLY what is visible in the image
+- Colors must match EXACTLY - use hex codes from the actual image
+- Layout must match EXACTLY - use flexbox/grid as shown in the design
+- Spacing must match EXACTLY - padding, margin, gap values from the design
 
 CRITICAL FORMATTING REQUIREMENTS:
 - For layout.type, use ONLY one of these exact values: "flex", "grid", "block", "inline", "relative", "absolute", or "fixed". Do NOT use descriptive phrases like "graphic-design/absolute-positioning" - use only the simple layout type.
 - For component types, use ONLY: button, input, card, header, footer, navbar, sidebar, modal, dropdown, form, list, list-item, grid, container, text, image, link, icon, logo, heading, divider, badge, avatar, tabs, accordion, carousel, or custom
 - For border style, provide as an object: {"width": "1px", "style": "solid", "color": {"hex": "#ffffff"}} NOT as a CSS string
 - For width and height, provide as strings with units: "32px" NOT as integers like 32
+- For position.x and position.y, provide exact pixel coordinates relative to parent or viewport
+- For colors, ALWAYS provide hex code - extract the exact color from the image, not approximations
+- Preserve ALL positioning information - if an element is at x: 100, y: 200, include those exact values
 """
         
         if additional_context:
@@ -221,60 +264,25 @@ CRITICAL FORMATTING REQUIREMENTS:
         return base_prompt
     
     async def _analyze_with_gemini(self, image_bytes: bytes, prompt: str) -> str:
-        """Analyze image with Gemini API"""
-        try:
-            # Detect MIME type using Pillow
-            detected_mime = "image/png"
+        """Analyze image with Gemini (CLI or API, auto-detected)"""
             try:
-                with Image.open(BytesIO(image_bytes)) as img:
-                    fmt = (img.format or "PNG").upper()
-                    if fmt == "PNG":
-                        detected_mime = "image/png"
-                    elif fmt in ("JPG", "JPEG"):
-                        detected_mime = "image/jpeg"
-                    elif fmt == "GIF":
-                        detected_mime = "image/gif"
-                    elif fmt == "BMP":
-                        detected_mime = "image/bmp"
-            except Exception:
-                detected_mime = "image/png"
+            # Use wrapper - it handles both CLI and API
+            response = await self.gemini.generate_with_image(
+                prompt=prompt,
+                image_data=image_bytes
+            )
+                
+            if not response:
+                raise Exception("Gemini returned empty response")
+                
+            print(f"Gemini response received, length: {len(response)}")
+            return response
             
-            # Create content for Gemini
-            content = [
-                prompt,
-                {
-                    "mime_type": detected_mime,
-                    "data": image_bytes
-                }
-            ]
-            
-            # Generate response
-            try:
-                response = await asyncio.get_event_loop().run_in_executor(
-                    None, 
-                    lambda: self.model.generate_content(content)
-                )
-                
-                if not response:
-                    raise Exception("Gemini API returned empty response")
-                
-                response_text = response.text if hasattr(response, 'text') else str(response)
-                
-                if not response_text:
-                    raise Exception("Gemini API returned response with no text content")
-                
-                print(f"Gemini response received, length: {len(response_text)}")
-                return response_text
-                
-            except Exception as e:
-                error_msg = f"Error calling Gemini API: {str(e)}"
-                if hasattr(e, 'message'):
-                    error_msg += f" - {e.message}"
-                print(error_msg)
-                raise Exception(error_msg) from e
             
         except Exception as e:
-            raise Exception(f"Gemini API error: {str(e)}")
+            error_msg = f"Error calling Gemini: {str(e)}"
+            print(error_msg)
+            raise Exception(error_msg) from e
     
     def _parse_gemini_response(self, response_text: str) -> UIAnalysis:
         """Parse Gemini response and extract UI analysis"""
@@ -311,6 +319,9 @@ CRITICAL FORMATTING REQUIREMENTS:
             
             print(f"Parsed data keys: {list(parsed_data.keys()) if isinstance(parsed_data, dict) else 'Not a dict'}")
             
+            # Clean and normalize the parsed data before creating UIAnalysis
+            parsed_data = self._clean_parsed_data(parsed_data)
+            
             # Convert to UIAnalysis model - handle missing fields gracefully
             try:
                 ui_analysis = UIAnalysis(**parsed_data)
@@ -323,6 +334,46 @@ CRITICAL FORMATTING REQUIREMENTS:
             
         except Exception as e:
             raise ValueError(f"Error parsing response: {str(e)}")
+    
+    def _clean_parsed_data(self, data: Dict[str, Any]) -> Dict[str, Any]:
+        """Clean and normalize parsed data to fix common issues"""
+        if not isinstance(data, dict):
+            return data
+        
+        # Clean components
+        if "components" in data and isinstance(data["components"], list):
+            cleaned_components = []
+            for component in data["components"]:
+                if not isinstance(component, dict):
+                    cleaned_components.append(component)
+                    continue
+                
+                # Clean style.position - if it's a string (CSS position property), remove it
+                # Position model expects {x, y, width, height}, not CSS position string
+                if "style" in component and isinstance(component["style"], dict):
+                    style = component["style"]
+                    if "position" in style:
+                        position_value = style["position"]
+                        # If position is a string (like "absolute", "relative", "fixed"), it's CSS position property
+                        # Remove it from style.position (it should be in layout_type or display instead)
+                        if isinstance(position_value, str) and position_value.lower() in ["absolute", "relative", "fixed", "static", "sticky"]:
+                            # This is CSS position property, not Position object - remove it
+                            # Optionally, we could set it as a separate CSS property, but for now just remove it
+                            del style["position"]
+                            print(f"⚠️  Removed CSS position string '{position_value}' from style.position (should be in layout_type)")
+                        # If position is not a dict with x/y/width/height, remove it
+                        elif isinstance(position_value, dict):
+                            # Check if it has the required Position fields
+                            if not any(key in position_value for key in ["x", "y", "width", "height"]):
+                                # It's not a valid Position object, remove it
+                                del style["position"]
+                                print(f"⚠️  Removed invalid position object from style.position")
+                
+                cleaned_components.append(component)
+            
+            data["components"] = cleaned_components
+        
+        return data
     
     def _fix_common_json_issues(self, json_str: str) -> str:
         """Fix common JSON issues that AI might generate"""

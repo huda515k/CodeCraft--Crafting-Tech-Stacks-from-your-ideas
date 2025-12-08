@@ -17,9 +17,9 @@ def stream_from_llm(prompt_text: str, model: str = None):
     return llm.stream(prompt_text)
 
 
-def erd_or_prompt_backend(specs: str, arch_type: str = "Monolith"):
+def prompt_to_backend(specs: str, arch_type: str = "Monolith"):
     """
-    Generate backend code (ERD or prompt-based) with architecture type.
+    Generate backend code from prompt with architecture type.
     """
     prompt = backend_prompt_template.format(
         specs=specs,
@@ -89,8 +89,3 @@ def extract_frontend_code(uploaded_zip):
     return code.strip()
 
 
-def image_to_prompt(uploaded_file):
-    """Converts ERD image into textual DBML-like format."""
-    llm = OllamaLLM(model="llava", base_url="http://localhost:11434")
-    result = llm.invoke("Describe this ERD image in DBML-like format.")
-    return result

@@ -33,13 +33,16 @@ class AIPromptAnalyzer:
         if not self.gemini_api_key:
             raise ValueError("GEMINI_API_KEY environment variable is required")
         
-        # Initialize Gemini
+        # Initialize Gemini (for direct calls)
         genai.configure(api_key=self.gemini_api_key)
-        self.model = genai.GenerativeModel('gemini-1.5-flash')
+        # Use gemini-flash-latest as requested
+        api_model = "gemini-flash-latest"  # Use gemini-flash-latest directly
+        self.model = genai.GenerativeModel(api_model)
         
-        # Initialize LangChain with Gemini
+        # Initialize LangChain with Gemini (uses API, not CLI)
+        # Note: LangChain integration works with API, CLI wrapper handles direct calls
         self.llm = ChatGoogleGenerativeAI(
-            model="gemini-1.5-flash",
+            model="gemini-flash-latest",  # Use gemini-flash-latest directly
             google_api_key=self.gemini_api_key,
             temperature=0.1
         )
@@ -472,22 +475,28 @@ class AIPromptAnalyzer:
             Be thorough and extract ALL roles, rules, and requirements mentioned in the prompt.
             """
             
-            # Generate response using Gemini
-            response = self.model.generate_content(context)
+            # Generate response using Gemini (via wrapper for CLI support)
+            import sys
+            from pathlib import Path
+            sys.path.insert(0, str(Path(__file__).parent.parent))
+            from utils.gemini_wrapper import GeminiWrapper
+            
+            gemini_wrapper = GeminiWrapper(api_key=self.gemini_api_key, model='gemini-2.5-flash')
+            response_text = await gemini_wrapper.generate_text(context)
             
             # Parse JSON response
             try:
                 # Extract JSON from response
-                json_match = re.search(r'\{.*\}', response.text, re.DOTALL)
+                json_match = re.search(r'\{.*\}', response_text, re.DOTALL)
                 if json_match:
                     result = json.loads(json_match.group())
                     return result
                 else:
                     # Fallback parsing
-                    return self._parse_fallback_response(response.text)
+                    return self._parse_fallback_response(response_text)
             except json.JSONDecodeError as e:
                 print(f"JSON parsing error: {e}")
-                return self._parse_fallback_response(response.text)
+                return self._parse_fallback_response(response_text)
                 
         except Exception as e:
             print(f"Error in direct Gemini analysis: {e}")

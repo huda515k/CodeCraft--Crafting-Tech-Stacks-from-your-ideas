@@ -1,4 +1,5 @@
-# backend_generator/erd/erd_parser.py
+# backend_generator/ERD/erd_parser_cli.py
+# Updated version that uses Gemini CLI wrapper (backward compatible)
 
 import asyncio
 import json
@@ -6,9 +7,9 @@ import base64
 from io import BytesIO
 from PIL import Image
 import os
+from typing import Dict, Any, Optional
 import sys
 from pathlib import Path
-from typing import Dict, Any, Optional
 
 # Add parent directory to path to import wrapper
 sys.path.insert(0, str(Path(__file__).parent.parent))
@@ -18,11 +19,16 @@ from .utils import ImageProcessor, NameConverter
 class ERDParser:
     """AI-powered ERD parsing using Gemini API or CLI (auto-detected)"""
     
-    def __init__(self, api_key: str):
-        self.api_key = api_key
-        # Use wrapper (auto-detects CLI or API)
-        # Default to flash-latest for API compatibility
-        model_name = os.getenv('GEMINI_MODEL', 'gemini-flash-latest')
+    def __init__(self, api_key: Optional[str] = None):
+        """
+        Initialize ERD Parser
+        
+        Args:
+            api_key: Optional API key. If None, will use GEMINI_API_KEY env var.
+                    If CLI is available, will prefer CLI for better quotas.
+        """
+        # Initialize wrapper (auto-detects CLI vs API)
+        model_name = os.getenv('GEMINI_MODEL', 'gemini-2.5-flash')
         self.gemini = GeminiWrapper(api_key=api_key, model=model_name)
         self.image_processor = ImageProcessor()
     
@@ -34,6 +40,7 @@ class ERDParser:
     ) -> Optional[Dict[str, Any]]:
         """
         Parse ERD image using Gemini AI
+        Same interface as before - no changes needed in calling code!
         """
         try:
             if image_data:
@@ -47,8 +54,11 @@ class ERDParser:
                 # Create prompt for ERD analysis
                 prompt = self._create_erd_analysis_prompt(additional_context)
                 
-                # Process with Gemini
-                response = await self._analyze_with_gemini(enhanced_image, prompt)
+                # Process with Gemini (works with both API and CLI)
+                response = await self.gemini.generate_with_image(
+                    prompt=prompt,
+                    image_data=enhanced_image
+                )
                 
                 return self._parse_gemini_response(response)
                 
@@ -59,13 +69,8 @@ class ERDParser:
                 raise ValueError("Either image_data or image_url must be provided")
                 
         except Exception as e:
-            import traceback
-            error_details = traceback.format_exc()
-            error_msg = f"ERD parsing failed: {str(e)}"
-            print(f"❌ Error parsing ERD: {error_msg}")
-            print(f"📋 Traceback: {error_details}")
-            # Return error details instead of None so service can show better error
-            raise Exception(error_msg) from e
+            print(f"Error parsing ERD: {str(e)}")
+            return None
     
     def _create_erd_analysis_prompt(self, additional_context: Optional[str] = None) -> str:
         """Create a comprehensive prompt for ERD analysis"""
@@ -152,19 +157,6 @@ class ERDParser:
             base_prompt += f"\n\nAdditional context: {additional_context}"
         
         return base_prompt
-    
-    async def _analyze_with_gemini(self, image_data: str, prompt: str) -> str:
-        """Analyze image with Gemini (CLI or API, auto-detected)"""
-        try:
-            # Use wrapper - it handles both CLI and API
-            response = await self.gemini.generate_with_image(
-                prompt=prompt,
-                image_data=image_data
-            )
-            return response
-            
-        except Exception as e:
-            raise Exception(f"Gemini error: {str(e)}")
     
     def _parse_gemini_response(self, response_text: str) -> Dict[str, Any]:
         """Parse Gemini response and extract JSON with robust error handling"""

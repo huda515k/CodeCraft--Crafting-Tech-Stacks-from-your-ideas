@@ -85,11 +85,18 @@ codecraft-ui/**/.vite/
 gemini-cli/
 outputs/
 sample ui images/
+uploads/
 *.zip
 *.bak
+
+# Exclude all .md files except README.md
+*.md
+!README.md
+!**/README.md
 
 # Test and generation scripts (optional - uncomment if you don't want to commit these)
 # test_complete_generation.py
 # test_ui_generation.py
 # generate_complete_app.py
 # generate_social_network_app.py
+.env

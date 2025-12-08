@@ -304,6 +304,8 @@ export default App;
             # This prevents text duplication like "hudaonlinehuda"
             content = "\n".join(children_components)
         elif component.text_content:
+            # IMPORTANT: For text elements, always render the text content
+            # This ensures text is visible in the generated UI
             # Use text content if available, but clean it first
             text_content = component.text_content.strip()
             # Remove duplicate text patterns (e.g., "hudaonlinehuda" -> "huda Online")
@@ -428,6 +430,7 @@ export default {comp_name};
         is_flex_container = comp_type in ['container', 'sidebar', 'header', 'footer', 'navbar', 'main-chat-area', 'chat-sidebar', 'chat-content']
         
         if pos:
+            # PRESERVE EXACT dimensions from UI
             if pos.width is not None:
                 width_value = self._format_css_dimension(pos.width)
                 css_rules.append(f"  width: {width_value};")
@@ -435,18 +438,28 @@ export default {comp_name};
                 height_value = self._format_css_dimension(pos.height)
                 css_rules.append(f"  height: {height_value};")
             
-            # NEVER use absolute positioning for layout components - they should use flexbox
-            # Only use position offsets for small UI elements like icons, badges, etc.
-            if not is_layout_component and not is_flex_container:
-                # Only add position/left/top for small non-layout components
-                # But even then, prefer padding/margin over absolute positioning
-                if pos.x is not None and pos.x != 0 and pos.x < 100:  # Only for small offsets
-                    # Use margin-left instead of absolute positioning
-                    x_value = self._format_css_dimension(pos.x)
-                    css_rules.append(f"  margin-left: {x_value};")
-                if pos.y is not None and pos.y != 0 and pos.y < 100:  # Only for small offsets
-                    y_value = self._format_css_dimension(pos.y)
-                    css_rules.append(f"  margin-top: {y_value};")
+            # For exact UI matching, preserve positioning when needed
+            # Use absolute positioning if component has explicit x/y coordinates
+            # This ensures pixel-perfect matching to the design
+            if pos.x is not None or pos.y is not None:
+                # Check if this is a positioned element (not a layout container)
+                if not is_layout_component:
+                    # Use absolute positioning for exact placement
+                    css_rules.append("  position: absolute;")
+                    if pos.x is not None:
+                        x_value = self._format_css_dimension(pos.x)
+                        css_rules.append(f"  left: {x_value};")
+                    if pos.y is not None:
+                        y_value = self._format_css_dimension(pos.y)
+                        css_rules.append(f"  top: {y_value};")
+                else:
+                    # For layout components, use margin for spacing
+                    if pos.x is not None and pos.x != 0:
+                        x_value = self._format_css_dimension(pos.x)
+                        css_rules.append(f"  margin-left: {x_value};")
+                    if pos.y is not None and pos.y != 0:
+                        y_value = self._format_css_dimension(pos.y)
+                        css_rules.append(f"  margin-top: {y_value};")
         
         # Ensure component has display property
         if style and style.layout_type:
@@ -476,12 +489,14 @@ export default {comp_name};
                     bg_color = style.background_color.hex
                 
                 if bg_color:
-                    # Check if it's a gradient (invalid as background-color)
+                    # Preserve exact color values - use hex if available for consistency
                     bg_str = str(bg_color).lower()
                     if 'gradient' in bg_str:
                         # Use background instead of background-color for gradients
                         css_rules.append(f"  background: {bg_color};")
                     else:
+                        # Prefer hex for consistency, but use whatever format was provided
+                        # This ensures exact color matching
                         css_rules.append(f"  background-color: {bg_color};")
             # Also check if component name suggests it needs a background
             elif is_layout_component:
@@ -504,23 +519,26 @@ export default {comp_name};
                 if typo.font_weight:
                     css_rules.append(f"  font-weight: {typo.font_weight};")
                 if typo.color:
-                    # Handle different color formats
-                    if typo.color.rgba:
+                    # PRESERVE EXACT text color - prioritize hex for consistency
+                    if typo.color.hex:
+                        css_rules.append(f"  color: {typo.color.hex};")
+                    elif typo.color.rgba:
                         css_rules.append(f"  color: {typo.color.rgba};")
                     elif typo.color.rgb:
                         css_rules.append(f"  color: {typo.color.rgb};")
-                    elif typo.color.hex:
-                        css_rules.append(f"  color: {typo.color.hex};")
                 if typo.text_align:
                     css_rules.append(f"  text-align: {typo.text_align};")
             
             if style.spacing:
                 spacing = style.spacing
                 if spacing.padding:
+                    # Preserve exact padding values
                     css_rules.append(f"  padding: {spacing.padding};")
                 if spacing.margin:
+                    # Preserve exact margin values
                     css_rules.append(f"  margin: {spacing.margin};")
                 if spacing.gap:
+                    # Preserve exact gap values for flex/grid layouts
                     css_rules.append(f"  gap: {spacing.gap};")
             # For flex containers without spacing, ensure proper layout
             elif is_flex_container:
@@ -645,10 +663,29 @@ export default {comp_name};
             elif comp_type == 'footer':
                 css_rules.append("  position: relative;")
         
-        # Ensure component has minimum visibility - add min-height for containers
+        # Ensure root container spans full viewport and contains all elements properly
         # Use comp_type already defined above, or get it safely
         if not comp_type:
             comp_type = component.type.value if (component.type and hasattr(component.type, 'value')) else (str(component.type) if component.type else 'container')
+        
+        # Check if this is the root component (no parent)
+        is_root_component = component.parent_id is None or component.parent_id == ""
+        comp_name_lower = component.name.lower()
+        is_app_root = any(keyword in comp_name_lower for keyword in ['app', 'root', 'container', 'layout', 'main', 'screen']) and is_root_component
+        
+        if is_app_root:
+            # Root container must span full viewport
+            if not pos or not pos.width:
+                css_rules.append("  width: 100%;")
+            if not pos or not pos.height:
+                css_rules.append("  min-height: 100vh;")
+            css_rules.append("  box-sizing: border-box;")
+            # Ensure proper layout for root
+            if not any('display:' in rule for rule in css_rules):
+                css_rules.append("  display: flex;")
+                css_rules.append("  flex-direction: column;")
+        
+        # Ensure component has minimum visibility - add min-height for containers
         if comp_type in ['container', 'sidebar', 'header', 'footer', 'navbar', 'main-chat-area', 'app-root']:
             # Check if height is already set
             has_height = False
@@ -660,8 +697,9 @@ export default {comp_name};
             if comp_type in ['header', 'footer']:
                 if not has_height:
                     css_rules.append("  height: auto;")
-            elif not has_height:
-                css_rules.append("  min-height: 100vh;")
+            elif not has_height and not is_app_root:
+                # Only add min-height for non-root containers
+                css_rules.append("  min-height: auto;")
         
         css_rules.append("}")
         return "\n".join(css_rules)
@@ -723,6 +761,8 @@ export default {comp_name};
         css.append("  padding: 0;")
         css.append("  box-sizing: border-box;")
         css.append("  overflow-x: hidden;")  # Prevent horizontal scroll
+        css.append("  display: flex;")
+        css.append("  flex-direction: column;")
         if ui_analysis.layout:
             if ui_analysis.layout.width:
                 # Only set max-width if it's less than 100vw
@@ -730,6 +770,25 @@ export default {comp_name};
                 if isinstance(max_width, str) and 'vw' not in max_width and '100%' not in max_width:
                     css.append(f"  max-width: {max_width};")
                     css.append("  margin: 0 auto;")
+        css.append("}")
+        
+        css.append("")
+        css.append(".app {")
+        css.append("  width: 100%;")
+        css.append("  min-height: 100vh;")
+        css.append("  display: flex;")
+        css.append("  flex-direction: column;")
+        css.append("  box-sizing: border-box;")
+        css.append("}")
+        
+        css.append("")
+        css.append(".app-flex {")
+        css.append("  display: flex;")
+        css.append("}")
+        
+        css.append("")
+        css.append(".app-grid {")
+        css.append("  display: grid;")
         css.append("}")
         
         css.append("")

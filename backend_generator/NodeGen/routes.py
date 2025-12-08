@@ -14,7 +14,7 @@ import asyncio
 from datetime import datetime
 
 from backend_generator.OllamabasedGeneration.module1_core import (
-    erd_or_prompt_backend,
+    prompt_to_backend,
     frontend_to_backend,
     extract_files,
     extract_api_map,
@@ -55,7 +55,7 @@ async def prompt_to_backend_stream(
             })
             
             # Stream LLM output and collect (like Streamlit does)
-            generator = erd_or_prompt_backend(prompt, arch_type)
+            generator = prompt_to_backend(prompt, arch_type)
             full_output = ""
             
             # Stream every chunk immediately for real-time preview (like Streamlit's stream_display)
@@ -183,7 +183,7 @@ async def prompt_to_backend(
     """
     try:
         # Stream LLM output and collect
-        generator = erd_or_prompt_backend(prompt, arch_type)
+        generator = prompt_to_backend(prompt, arch_type)
         full_output = ""
         for chunk in generator:
             text = getattr(chunk, "content", None) or str(chunk)
@@ -359,7 +359,7 @@ async def frontend_to_backend_endpoint(
 async def advanced_upload_erd_and_generate(
     file: UploadFile = File(..., description="ERD image file (PNG, JPG, JPEG)"),
     additional_context: Optional[str] = Form(None, description="Additional context or requirements for the backend"),
-    gemini_model: Optional[str] = Form("gemini-flash-latest", description="Gemini model to use (gemini-flash-latest, gemini-1.5-flash, etc.)")
+    gemini_model: Optional[str] = Form("gemini-flash-latest", description="Gemini model to use (gemini-flash-latest, gemini-1.5-flash-latest, etc.)")
 ):
     """
     🚀 AI-Powered Advanced Generator: Upload ERD Image and Generate Professional Backend
@@ -395,12 +395,13 @@ async def advanced_upload_erd_and_generate(
         if len(content) == 0:
             raise HTTPException(status_code=400, detail="Empty file uploaded")
         
-        # Initialize ERD processing service with API key
-        gemini_api_key = os.getenv("GEMINI_API_KEY")
-        if not gemini_api_key:
-            raise HTTPException(status_code=500, detail="Gemini API key not configured. Please set GEMINI_API_KEY environment variable.")
+        # Initialize ERD processing service with API key (for fallback if CLI fails)
+        # Note: CLI uses OAuth, but API key is needed for fallback
+        gemini_api_key = os.getenv("GEMINI_API_KEY", "")
+        # Don't require API key if CLI is available (it uses OAuth)
+        # But it's recommended for fallback
         
-        erd_service = ERDProcessingService(gemini_api_key)
+        erd_service = ERDProcessingService(gemini_api_key if gemini_api_key else "dummy-key-for-cli")
         
         # Process ERD image with AI
         print(f"🤖 Processing ERD with {gemini_model}...")

@@ -12,14 +12,20 @@ from .models import (
 )
 from .ui_parser import UIParser
 from .code_generator import ReactCodeGenerator
+from .langgraph_agent import LangGraphFrontendAgent
+from .ai_code_generator import AIReactCodeGenerator
 
 class FrontendGenerationService:
     """Main service class for frontend generation operations"""
     
-    def __init__(self, gemini_api_key: str):
+    def __init__(self, gemini_api_key: str, use_ai_generator: bool = False):
         self.gemini_api_key = gemini_api_key
         self.parser = UIParser(gemini_api_key)
         self.code_generator = None  # Will be initialized per request
+        self.use_ai_generator = use_ai_generator
+        self.ai_code_generator = None
+        self.langgraph_agent = None
+        # Initialize AI components lazily when needed
     
     async def process_ui(
         self, 
@@ -119,12 +125,32 @@ class FrontendGenerationService:
         additional_context: Optional[str] = None,
         framework: str = "react",
         styling_approach: str = "css-modules",
-        include_typescript: bool = True
+        include_typescript: bool = True,
+        use_ai: bool = False
     ) -> Dict[str, Any]:
         """
         Process UI image and generate complete React project in one call
+        
+        Args:
+            use_ai: If True, use AI-powered code generator (LangGraph agent)
+                    If False, use template-based generator (faster, less flexible)
         """
         try:
+            # Use AI generator if requested
+            if use_ai or self.use_ai_generator:
+                # Initialize AI components if not already initialized
+                if not self.langgraph_agent:
+                    self.langgraph_agent = LangGraphFrontendAgent(self.gemini_api_key)
+                
+                return await self._process_and_generate_with_ai(
+                    image_data=image_data,
+                    image_url=image_url,
+                    additional_context=additional_context,
+                    framework=framework,
+                    styling_approach=styling_approach,
+                    include_typescript=include_typescript
+                )
+            
             # Step 1: Process UI
             request = UIProcessingRequest(
                 image_data=image_data,
@@ -171,6 +197,62 @@ class FrontendGenerationService:
                 "error_message": f"Processing and generation error: {str(e)}"
             }
     
+    async def _process_and_generate_with_ai(
+        self,
+        image_data: Optional[str] = None,
+        image_url: Optional[str] = None,
+        additional_context: Optional[str] = None,
+        framework: str = "react",
+        styling_approach: str = "css-modules",
+        include_typescript: bool = True
+    ) -> Dict[str, Any]:
+        """Process UI and generate React code using AI (LangGraph agent)"""
+        try:
+            # Use LangGraph agent for AI-powered generation
+            result = await self.langgraph_agent.process_ui_to_react(
+                image_data=image_data,
+                project_name="react-app",
+                additional_context=additional_context,
+                include_typescript=include_typescript,
+                styling_approach=styling_approach
+            )
+            
+            if not result["success"]:
+                return {
+                    "success": False,
+                    "error_message": result.get("error_message", "AI generation failed")
+                }
+            
+            # Convert to GeneratedProject format
+            from .models import GeneratedProject
+            project = GeneratedProject(
+                project_name=result.get("project_name", "react-app"),
+                files=result["project_files"],
+                metadata={
+                    "framework": framework,
+                    "styling_approach": styling_approach,
+                    "typescript": include_typescript,
+                    "generation_method": "ai_langgraph",
+                    "components_count": len(result.get("ui_analysis", {}).get("components", [])) if result.get("ui_analysis") else 0
+                }
+            )
+            
+            return {
+                "success": True,
+                "project": project,
+                "ui_analysis": result.get("ui_analysis"),
+                "files_count": result.get("files_count", 0)
+            }
+            
+        except Exception as e:
+            import traceback
+            error_trace = traceback.format_exc()
+            print(f"AI generation error: {error_trace}")
+            return {
+                "success": False,
+                "error_message": f"AI generation error: {str(e)}"
+            }
+    
     def create_zip_from_project(self, project: GeneratedProject) -> io.BytesIO:
         """
         Create a ZIP file from generated project
@@ -208,7 +290,8 @@ class FrontendGenerationService:
         additional_context: Optional[str] = None,
         framework: str = "react",
         styling_approach: str = "css-modules",
-        include_typescript: bool = True
+        include_typescript: bool = True,
+        use_ai: bool = False
     ) -> Dict[str, Any]:
         """
         Generate a complete React project with multiple screens connected via React Router
@@ -293,9 +376,22 @@ class FrontendGenerationService:
                     import_pattern = r"import\s+(\w+)\s+from\s+['\"].*components/(\w+)"
                     matches = re.findall(import_pattern, app_content)
                     if matches:
-                        # Get the first imported component (usually the main one)
-                        main_component = matches[0][0]  # Component name used in code
-                        component_file_name = matches[0][1]  # File name
+                        # Prioritize components that match root/container patterns
+                        prioritized_matches = []
+                        for match in matches:
+                            comp_name = match[0]
+                            file_name = match[1]
+                            # Check if it's a root/container component
+                            is_root = any(keyword in comp_name.lower() or keyword in file_name.lower() 
+                                        for keyword in ['app', 'root', 'container', 'layout', 'main', 'screen'])
+                            prioritized_matches.append((is_root, match))
+                        
+                        # Sort: root components first
+                        prioritized_matches.sort(key=lambda x: (not x[0], x[1][0]))
+                        
+                        # Get the first (highest priority) component
+                        main_component = prioritized_matches[0][1][0]  # Component name used in code
+                        component_file_name = prioritized_matches[0][1][1]  # File name
                         
                         # Find the component file
                         file_ext = "tsx" if include_typescript else "jsx"
@@ -310,24 +406,37 @@ class FrontendGenerationService:
                                     break
                 
                 # If still not found, use first root component from UI analysis
+                # Prioritize components that match root/container patterns
                 if not main_component or not main_component_path:
                     root_components = [c for c in processing_result.ui_analysis.components if c.parent_id is None or c.parent_id == ""]
                     if root_components:
-                        main_component = self._sanitize_component_name(root_components[0].name)
-                        file_ext = "tsx" if include_typescript else "jsx"
-                        main_component_path = f"src/components/{main_component}.{file_ext}"
+                        # Sort root components by priority (container/app/root/main first)
+                        root_components = sorted(root_components, key=lambda c: (
+                            any(keyword in c.name.lower() for keyword in ['app', 'root', 'container', 'layout', 'main', 'screen']),
+                            len(c.children) if c.children else 0
+                        ), reverse=True)
                         
-                        # Verify it exists
-                        if main_component_path not in screen_project.files:
-                            # Find any component file with this name
-                            for comp_path in screen_project.files.keys():
-                                if main_component in comp_path and ('components/' in comp_path):
-                                    main_component_path = comp_path
-                                    # Extract actual component name from path
-                                    path_parts = comp_path.split('/')
-                                    if path_parts:
-                                        file_name = path_parts[-1].replace('.tsx', '').replace('.jsx', '')
-                                        main_component = file_name
+                        # Try to find the highest priority root component
+                        for root_comp in root_components:
+                            main_component = self._sanitize_component_name(root_comp.name)
+                            file_ext = "tsx" if include_typescript else "jsx"
+                            main_component_path = f"src/components/{main_component}.{file_ext}"
+                            
+                            # Verify it exists
+                            if main_component_path in screen_project.files:
+                                break
+                            else:
+                                # Find any component file with this name
+                                for comp_path in screen_project.files.keys():
+                                    if main_component.lower() in comp_path.lower() and ('components/' in comp_path):
+                                        main_component_path = comp_path
+                                        # Extract actual component name from path
+                                        path_parts = comp_path.split('/')
+                                        if path_parts:
+                                            file_name = path_parts[-1].replace('.tsx', '').replace('.jsx', '')
+                                            main_component = file_name
+                                        break
+                                if main_component_path in screen_project.files:
                                     break
                 
                 # Collect all components from this screen (merge into shared components)
@@ -547,19 +656,83 @@ export default defineConfig({
             else:
                 import_path = f"../components/{comp_name}"
             
-            # Sanitize screen name for component name
+            # Sanitize screen name for component name (must be valid JS identifier)
             screen_component_name = self._sanitize_component_name(screen_name)
+            # Ensure it doesn't start with a number (invalid JS identifier)
+            if screen_component_name and screen_component_name[0].isdigit():
+                screen_component_name = "Screen" + screen_component_name
+            # Remove any remaining invalid characters (hyphens, etc.) from component name
+            screen_component_name = screen_component_name.replace('-', '').replace('_', '')
+            # Ensure it starts with a letter
+            if not screen_component_name or not screen_component_name[0].isalpha():
+                screen_component_name = "Screen" + screen_component_name
             
             # Create screen wrapper
             screen_imports.append(f"import {comp_name} from '{import_path}';")
             screen_routes.append(f'          <Route path="{route}" element={{<{screen_component_name} />}} />')
             
-            # Create screen file
+            # Find the ROOT container component - prioritize components that contain the full screen
+            # Look for: AppContainer, AppRoot, RootContainer, ScreenContainer, or the largest root component
+            root_container_name = None
+            root_container_path = None
+            
+            # Priority order for root container names
+            root_container_patterns = [
+                'appcontainer', 'app-container', 'approot', 'app-root',
+                'rootcontainer', 'root-container', 'screencontainer', 'screen-container',
+                'maincontainer', 'main-container', 'layoutcontainer', 'layout-container'
+            ]
+            
+            # First, try to find by name patterns
+            for comp_file_path in all_components.keys():
+                file_name_lower = comp_file_path.lower()
+                if comp_file_path.endswith(f'.{file_ext}'):
+                    for pattern in root_container_patterns:
+                        if pattern in file_name_lower:
+                            root_container_path = comp_file_path
+                            path_parts = comp_file_path.split('/')
+                            if path_parts:
+                                file_name = path_parts[-1].replace(f'.{file_ext}', '')
+                                root_container_name = self._sanitize_component_name(file_name)
+                            break
+                    if root_container_name:
+                        break
+            
+            # If not found by pattern, find the largest root component (most children)
+            if not root_container_name:
+                # Check the screen's all_files to find the root component
+                screen_files = screen_data.get('all_files', {})
+                root_components = []
+                for file_path, file_content in screen_files.items():
+                    if 'components/' in file_path and file_path.endswith(f'.{file_ext}'):
+                        # Count imports to estimate component size
+                        import_count = file_content.count('import')
+                        root_components.append((import_count, file_path))
+                
+                if root_components:
+                    # Sort by import count (more imports = more likely to be root)
+                    root_components.sort(reverse=True)
+                    root_container_path = root_components[0][1]
+                    path_parts = root_container_path.split('/')
+                    if path_parts:
+                        file_name = path_parts[-1].replace(f'.{file_ext}', '')
+                        root_container_name = self._sanitize_component_name(file_name)
+            
+            # Use root container if found, otherwise use the selected component
+            component_to_use = root_container_name if root_container_name else comp_name
+            import_path_to_use = None
+            
+            if root_container_name and root_container_path:
+                import_path_to_use = root_container_path.replace('src/components/', '../components/').replace(f'.{file_ext}', '')
+            else:
+                import_path_to_use = import_path
+            
+            # Generate screen file - render the root component exactly as designed
             project_files[f"src/screens/{screen_name}.{file_ext}"] = f"""import React from 'react';
-import {comp_name} from '{import_path}';
+import {component_to_use} from '{import_path_to_use}';
 
 const {screen_component_name}: React.FC = () => {{
-  return <{comp_name} />;
+  return <{component_to_use} />;
 }};
 
 export default {screen_component_name};
@@ -567,41 +740,39 @@ export default {screen_component_name};
         
         # 7. Create App.tsx with React Router
         screen_imports_for_app = []
+        screen_component_names_map = {}  # Map screen_name to sanitized component name
         for screen_name, screen_data in screen_components_map.items():
             screen_component_name = self._sanitize_component_name(screen_name)
+            # Ensure it doesn't start with a number (invalid JS identifier)
+            if screen_component_name and screen_component_name[0].isdigit():
+                screen_component_name = "Screen" + screen_component_name
+            # Remove any remaining invalid characters (hyphens, etc.) from component name
+            screen_component_name = screen_component_name.replace('-', '').replace('_', '')
+            # Ensure it starts with a letter
+            if not screen_component_name or not screen_component_name[0].isalpha():
+                screen_component_name = "Screen" + screen_component_name
+            screen_component_names_map[screen_name] = screen_component_name
             screen_imports_for_app.append(f"import {screen_component_name} from './screens/{screen_name}';")
         
-        navigation_links = "\n".join([
-            f'            <Link to="{screen_data["route"]}">{screen_name}</Link>'
-            for screen_name, screen_data in screen_components_map.items()
-        ])
+        # Generate routes with proper component names
+        route_elements = []
+        for screen_name, screen_data in screen_components_map.items():
+            screen_component_name = screen_component_names_map.get(screen_name, self._sanitize_component_name(screen_name))
+            route_elements.append(f'          <Route path="{screen_data["route"]}" element={{<{screen_component_name} />}} />')
         
+        # Generate App.tsx WITHOUT navigation bar - screens should render exactly as designed
+        # Only add React Router for navigation between screens, but don't add UI elements
         project_files[f"src/App.{file_ext}"] = f"""import React from 'react';
-import {{ BrowserRouter, Routes, Route, Link, useLocation }} from 'react-router-dom';
+import {{ BrowserRouter, Routes, Route }} from 'react-router-dom';
 {chr(10).join(screen_imports_for_app)}
 import './index.css';
-
-const Navigation: React.FC = () => {{
-  const location = useLocation();
-  
-  return (
-    <nav className="app-navigation">
-{chr(10).join([f'            <Link to="{screen_data["route"]}" className={{location.pathname === "{screen_data["route"]}" ? "active" : ""}}>{screen_name}</Link>' for screen_name, screen_data in screen_components_map.items()])}
-    </nav>
-  );
-}};
 
 const App: React.FC = () => {{
   return (
     <BrowserRouter>
-      <div className="app">
-        <Navigation />
-        <main className="app-main">
-          <Routes>
-{chr(10).join(screen_routes)}
-          </Routes>
-        </main>
-      </div>
+      <Routes>
+{chr(10).join(route_elements)}
+      </Routes>
     </BrowserRouter>
   );
 }};
@@ -621,7 +792,7 @@ ReactDOM.createRoot(document.getElementById('root')!).render(
 );
 """
         
-        # 9. Enhanced index.css with navigation styles
+        # 9. Clean index.css - NO navigation styles, just base reset
         project_files["src/index.css"] = """* {
   margin: 0;
   padding: 0;
@@ -633,7 +804,7 @@ html, body {
   height: 100%;
   margin: 0;
   padding: 0;
-  font-family: 'Poppins', 'Montserrat', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Roboto', 'Oxygen', 'Ubuntu', 'Cantarell', sans-serif;
 }
 
 #root {
@@ -644,54 +815,6 @@ html, body {
   padding: 0;
   box-sizing: border-box;
   overflow-x: hidden;
-}
-
-.app {
-  width: 100%;
-  min-width: 100vw;
-  min-height: 100vh;
-  display: flex;
-  flex-direction: column;
-  box-sizing: border-box;
-  overflow-x: hidden;
-}
-
-.app-navigation {
-  display: flex;
-  gap: 0.5rem;
-  padding: 1rem;
-  background-color: #667eea;
-  flex-wrap: wrap;
-  position: sticky;
-  top: 0;
-  z-index: 1000;
-  box-shadow: 0 2px 4px rgba(0,0,0,0.1);
-  width: 100%;
-  box-sizing: border-box;
-}
-
-.app-navigation a {
-  color: white;
-  text-decoration: none;
-  padding: 0.5rem 1rem;
-  border-radius: 4px;
-  font-weight: 500;
-  transition: background-color 0.2s;
-}
-
-.app-navigation a:hover {
-  background-color: rgba(255, 255, 255, 0.2);
-}
-
-.app-navigation a.active {
-  background-color: rgba(255, 255, 255, 0.3);
-}
-
-.app-main {
-  flex: 1;
-  width: 100%;
-  min-height: calc(100vh - 60px);
-  box-sizing: border-box;
 }
 """
         
@@ -720,7 +843,7 @@ Then open http://localhost:3000 in your browser.
 
 ## 🧭 Navigation
 
-Use the navigation bar at the top to switch between screens, or navigate directly using the routes above.
+Navigate directly using the routes above. Screens are connected via React Router.
 
 ## 🏗️ Project Structure
 
