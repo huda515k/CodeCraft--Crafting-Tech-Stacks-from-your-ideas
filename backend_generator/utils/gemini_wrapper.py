@@ -61,26 +61,65 @@ class GeminiWrapper:
     def _check_cli_available(self) -> bool:
         """Check if Gemini CLI is installed and available"""
         try:
-            result = subprocess.run(
-                ["gemini", "--version"],
-                capture_output=True,
-                timeout=5
-            )
-            return result.returncode == 0
-        except (FileNotFoundError, subprocess.TimeoutExpired):
+            # Try both 'gemini' and 'gemini-cli' commands
+            for cmd in ["gemini", "gemini-cli"]:
+                try:
+                    result = subprocess.run(
+                        [cmd, "--version"],
+                        capture_output=True,
+                        timeout=5
+                    )
+                    if result.returncode == 0:
+                        print(f"✅ Found Gemini CLI: {cmd}")
+                        return True
+                except (FileNotFoundError, subprocess.TimeoutExpired):
+                    continue
+            return False
+        except Exception:
             return False
     
     def _map_model_for_api(self, model: str) -> str:
         """Map CLI model names to API model names"""
-        # Use gemini-flash-latest directly for API (as user requested)
+        # Map to actual Gemini API model names that are available
+        # Try to use the model name directly if it's available in API
+        # gemini-2.5-flash is available in API, so use it directly
         model_mapping = {
-            "gemini-2.5-pro": "gemini-flash-latest",  # Fallback to flash-latest
-            "gemini-2.5-flash": "gemini-flash-latest",
-            "gemini-2.5-flash-lite": "gemini-flash-latest",
-            "gemini-3-pro-preview": "gemini-flash-latest",
-            "gemini-flash-latest": "gemini-flash-latest",  # Use directly
+            "gemini-2.5-pro": "gemini-2.5-pro",  # Try direct first
+            "gemini-2.5-flash": "gemini-2.5-flash",  # Available in API - use directly
+            "gemini-2.5-flash-lite": "gemini-2.5-flash",  # Fallback to flash
+            "gemini-3-pro-preview": "gemini-2.5-pro",  # Try 2.5-pro
+            "gemini-flash-latest": "gemini-2.5-flash",  # Use 2.5-flash directly
+            "gemini-1.5-flash": "gemini-2.5-flash",  # Upgrade to 2.5
+            "gemini-1.5-flash-latest": "gemini-2.5-flash",  # Upgrade to 2.5
         }
-        return model_mapping.get(model, "gemini-flash-latest")  # Default to gemini-flash-latest
+        # Default to gemini-2.5-flash which is available in API
+        return model_mapping.get(model, "gemini-2.5-flash")
+    
+    def _map_model_for_cli(self, model: str, for_image: bool = False) -> str:
+        """Map model names to CLI-compatible model names"""
+        # CLI model name mapping - CLI might use different names than API
+        # For image processing, use vision-capable models
+        if for_image:
+            # Vision-capable models for CLI
+            vision_model_mapping = {
+                "gemini-flash-latest": "gemini-1.5-flash",
+                "gemini-2.5-flash": "gemini-1.5-flash",
+                "gemini-2.5-pro": "gemini-1.5-pro",
+                "gemini-2.5-flash-lite": "gemini-1.5-flash",
+                "gemini-3-pro-preview": "gemini-1.5-pro",
+            }
+            return vision_model_mapping.get(model, "gemini-1.5-flash")  # Default to vision-capable model
+        
+        # Text-only models - use stable models that are widely available
+        cli_model_mapping = {
+            "gemini-flash-latest": "gemini-1.5-flash",  # Use stable instead of experimental
+            "gemini-2.5-flash": "gemini-1.5-flash",  # Use stable instead of experimental
+            "gemini-2.5-pro": "gemini-1.5-pro",
+            "gemini-2.5-flash-lite": "gemini-1.5-flash",  # Use stable instead of experimental
+            "gemini-3-pro-preview": "gemini-1.5-pro",
+        }
+        # Default to stable model instead of experimental
+        return cli_model_mapping.get(model, "gemini-1.5-flash")
     
     async def generate_text(self, prompt: str) -> str:
         """Generate text response from prompt"""
@@ -118,14 +157,46 @@ class GeminiWrapper:
             image_data: Base64 string or bytes of image
             mime_type: MIME type of image (auto-detected if not provided)
         
-        Note: Images use API (better support), text-only uses CLI (better quotas)
+        Note: Tries API first, falls back to CLI if API has quota/errors
         """
-        # For images, ALWAYS use API directly (faster and more reliable)
-        # CLI image support is slow and unreliable - NEVER use it
+        # Try API first (faster and more reliable)
         if self.api_key and self.api_key != "dummy-key-for-cli":
-            return await self._generate_with_image_api(prompt, image_data, mime_type)
+            try:
+                return await self._generate_with_image_api(prompt, image_data, mime_type)
+            except Exception as api_error:
+                error_str = str(api_error)
+                # If API fails due to quota, model not found (404), or other errors, try CLI as fallback
+                should_fallback = (
+                    "API_QUOTA_ERROR" in error_str or 
+                    "quota" in error_str.lower() or 
+                    "429" in error_str or 
+                    "exhausted" in error_str.lower() or
+                    "404" in error_str or
+                    "not found" in error_str.lower() or
+                    "notFound" in error_str or
+                    "models/" in error_str and "not found" in error_str.lower()
+                )
+                
+                if should_fallback:
+                    print(f"⚠️  API error detected: {error_str[:200]}")
+                    if self.use_cli:
+                        print("🔄 Falling back to Gemini CLI for image processing...")
+                        try:
+                            return await self._generate_with_image_cli(prompt, image_data, mime_type)
+                        except Exception as cli_error:
+                            # If CLI also fails, raise with both errors
+                            raise Exception(f"Both API and CLI failed. API error: {error_str[:200]}. CLI error: {str(cli_error)[:200]}")
+                    else:
+                        # No CLI available, raise with helpful message
+                        raise Exception(f"API error and CLI not available. Please install Gemini CLI: npm install -g @google/generative-ai-cli && gemini-cli auth login")
+                else:
+                    # For other errors, don't fallback - just raise
+                    raise
+        elif self.use_cli:
+            # No API key, use CLI directly
+            return await self._generate_with_image_cli(prompt, image_data, mime_type)
         else:
-            raise ValueError("GEMINI_API_KEY required for image processing. CLI image support is too slow and unreliable.")
+            raise ValueError("Either GEMINI_API_KEY or Gemini CLI (with OAuth) is required for image processing.")
     
     async def _generate_with_api(self, prompt: str) -> str:
         """Generate using direct API"""
@@ -141,6 +212,9 @@ class GeminiWrapper:
     async def _generate_with_cli(self, prompt: str) -> str:
         """Generate using Gemini CLI"""
         try:
+            # Map model name for CLI compatibility
+            cli_model = self._map_model_for_cli(self.model)
+            
             # Use headless mode with JSON output (longer timeout for large prompts like code generation)
             result = await asyncio.get_event_loop().run_in_executor(
                 None,
@@ -149,7 +223,7 @@ class GeminiWrapper:
                         "gemini",
                         "-p", prompt,
                         "--output-format", "json",
-                        "-m", self.model
+                        "-m", cli_model
                     ],
                     capture_output=True,
                     text=True,
@@ -318,9 +392,10 @@ class GeminiWrapper:
             raise Exception("Gemini API request timed out after 180 seconds (with retries). The image might be too complex or the API is experiencing high load. Please try again or use a smaller/simpler image.")
         except Exception as e:
             error_str = str(e)
-            # Don't fallback to CLI - just raise the error immediately
-            if "429" in error_str or "quota" in error_str.lower():
-                raise Exception(f"API quota exhausted (20 requests/day limit). Please wait 24 hours or use a different Google account with a new API key.")
+            # Check for quota errors - these should trigger CLI fallback
+            if "429" in error_str or "quota" in error_str.lower() or "exhausted" in error_str.lower():
+                # Raise a specific exception that can be caught for fallback
+                raise Exception(f"API_QUOTA_ERROR: API quota exhausted. This will trigger CLI fallback if available.")
             raise Exception(f"Gemini API error: {str(e)}")
     
     async def _generate_with_image_cli(
@@ -332,11 +407,11 @@ class GeminiWrapper:
         """
         Generate with image using Gemini CLI
         
-        NOTE: CLI image processing is DISABLED - too slow and unreliable.
-        This method should never be called for images.
+        NOTE: CLI image processing is slower than API but works as fallback when API quota is exhausted.
+        This method is used as a fallback when API quota errors occur.
         """
-        # CLI image processing is completely disabled - always fail
-        raise ValueError("CLI image processing is disabled. Use API with GEMINI_API_KEY for image processing.")
+        # CLI image processing is now enabled as fallback for quota-exhausted scenarios
+        # Note: This is slower than API but provides a working alternative
         try:
             # Convert base64 string to bytes if needed
             if isinstance(image_data, str):
@@ -366,44 +441,88 @@ class GeminiWrapper:
                 tmp_path = tmp_file.name
             
             try:
-                # Try using include-directories to reference the image
-                # CLI can process images in the working directory
-                image_dir = os.path.dirname(tmp_path)
-                image_filename = os.path.basename(tmp_path)
+                # Map model name for CLI compatibility - use vision-capable model for images
+                cli_model = self._map_model_for_cli(self.model, for_image=True)
                 
-                # Enhanced prompt that references the image file
-                enhanced_prompt = f"""{prompt}
-
-[Note: An image file named '{image_filename}' is available in the current directory. Please analyze this image as part of your response.]"""
+                # Try both 'gemini' and 'gemini-cli' commands
+                cli_cmd = None
+                for cmd in ["gemini", "gemini-cli"]:
+                    try:
+                        result_check = subprocess.run(
+                            [cmd, "--version"],
+                            capture_output=True,
+                            timeout=2
+                        )
+                        if result_check.returncode == 0:
+                            cli_cmd = cmd
+                            break
+                    except (FileNotFoundError, subprocess.TimeoutExpired):
+                        continue
                 
-                # Run CLI from the directory containing the image
-                result = await asyncio.get_event_loop().run_in_executor(
-                    None,
-                    lambda: subprocess.run(
-                        [
-                            "gemini",
-                            "-p", enhanced_prompt,
-                            "--include-directories", image_dir,
-                            "--output-format", "json",
-                            "-m", self.model
-                        ],
-                        capture_output=True,
-                        text=True,
-                        timeout=120,
-                        cwd=image_dir  # Run from image directory
+                if not cli_cmd:
+                    raise Exception("Gemini CLI not found. Install with: npm install -g @google/generative-ai-cli")
+                
+                # Gemini CLI supports passing image files directly as arguments
+                # For gemini-cli: gemini-cli prompt --model MODEL "prompt" image.jpg
+                # For gemini: Use @ syntax: gemini -m MODEL "prompt @image.jpg" (or positional)
+                if cli_cmd == "gemini-cli":
+                    # Use gemini-cli syntax: gemini-cli prompt --model MODEL "prompt" image.jpg
+                    result = await asyncio.get_event_loop().run_in_executor(
+                        None,
+                        lambda: subprocess.run(
+                            [
+                                "gemini-cli",
+                                "prompt",
+                                "--model", cli_model,
+                                "--output-format", "json",
+                                prompt,
+                                tmp_path
+                            ],
+                            capture_output=True,
+                            text=True,
+                            timeout=180  # Longer timeout for image processing
+                        )
                     )
-                )
+                else:
+                    # Use gemini syntax with @ for image: gemini -m MODEL "prompt @image.jpg"
+                    # This embeds the image in the prompt string
+                    prompt_with_image = f"{prompt} @{tmp_path}"
+                
                 
                 if result.returncode != 0:
                     error_msg = result.stderr or result.stdout
                     print(f"⚠️  CLI image processing failed (exit code {result.returncode})")
                     print(f"   Error output: {error_msg[:500]}")
-                    # If CLI fails with images, fall back to API if available
-                    if self.api_key:
-                        print("⚠️  Falling back to API for image processing")
-                        return await self._generate_with_image_api(prompt, image_data, mime_type)
-                    else:
-                        raise Exception(f"Gemini CLI error: {error_msg}")
+                    
+                    # Try to read the full error report if mentioned
+                    detailed_error = error_msg
+                    if "Full report available at:" in error_msg:
+                        try:
+                            import re
+                            match = re.search(r'Full report available at: (.+)', error_msg)
+                            if match:
+                                error_report_path = match.group(1).strip()
+                                if os.path.exists(error_report_path):
+                                    with open(error_report_path, 'r') as f:
+                                        error_report = json.load(f)
+                                        error_details = error_report.get("error", {})
+                                        detailed_msg = error_details.get("message", str(error_details))
+                                        error_code = error_details.get("code", "")
+                                        if detailed_msg and detailed_msg != "[object Object]":
+                                            detailed_error = f"{error_msg}\nDetailed error: {detailed_msg}"
+                                            if error_code:
+                                                detailed_error += f"\nError code: {error_code}"
+                        except Exception as read_error:
+                            pass  # If we can't read the report, use the original error
+                    
+                    # Check for specific error types
+                    if "Error when talking to Gemini API" in error_msg:
+                        # CLI also uses the same API, so if API quota is exhausted, CLI will also fail
+                        raise Exception(f"Gemini CLI failed: The CLI uses the same Gemini API, and it appears the API quota is exhausted for both API key and CLI OAuth credentials. Please wait for quota reset or use a different Google account. Original error: {detailed_error[:800]}")
+                    
+                    # If CLI fails, we can't fall back to API (API quota is exhausted)
+                    # So we raise the error with helpful message
+                    raise Exception(f"Gemini CLI image processing failed: {detailed_error[:800]}. Please check that Gemini CLI is properly installed and authenticated: npm install -g @google/generative-ai-cli && gemini auth login")
                 
                 # Parse JSON response
                 try:
@@ -422,11 +541,12 @@ class GeminiWrapper:
                     pass
                     
         except subprocess.TimeoutExpired:
-            raise Exception("Gemini CLI request timed out")
+            raise Exception("Gemini CLI image processing timed out after 180 seconds. The image might be too complex or CLI is experiencing issues.")
         except Exception as e:
-            # If CLI fails and we have API key, fall back
-            if self.api_key and "CLI" in str(e):
-                print("⚠️  CLI error, falling back to API")
-                return await self._generate_with_image_api(prompt, image_data, mime_type)
-            raise Exception(f"Gemini CLI error: {str(e)}")
+            # If we're here, it means we're using CLI as fallback (API quota exhausted)
+            # So we can't fall back to API - just raise the error
+            error_str = str(e)
+            if "CLI image processing is disabled" not in error_str:  # Don't double-wrap the error
+                raise Exception(f"Gemini CLI image processing error: {error_str[:500]}. Please ensure Gemini CLI is installed and authenticated: npm install -g @google/generative-ai-cli && gemini-cli auth login")
+            raise
 

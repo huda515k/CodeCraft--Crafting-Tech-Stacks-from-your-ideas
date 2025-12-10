@@ -313,6 +313,28 @@ async def generate_multi_screen_app(
             image_data = base64.b64encode(file_content).decode('utf-8')
             screen_images.append(image_data)
         
+        # Auto-generate or truncate screen names and routes to match file count
+        if not parsed_screen_names:
+            parsed_screen_names = [f"Screen{i+1}" for i in range(len(screen_images))]
+        elif len(parsed_screen_names) < len(screen_images):
+            # If some names provided, use them and auto-generate the rest
+            for i in range(len(parsed_screen_names), len(screen_images)):
+                parsed_screen_names.append(f"Screen{i+1}")
+        elif len(parsed_screen_names) > len(screen_images):
+            # If more names provided than files, truncate to match file count
+            parsed_screen_names = parsed_screen_names[:len(screen_images)]
+        
+        if not parsed_screen_routes:
+            # Default routes: first is "/", rest are "/screen2", "/screen3", etc.
+            parsed_screen_routes = ["/"] if len(screen_images) == 1 else ["/"] + [f"/screen{i+1}" for i in range(1, len(screen_images))]
+        elif len(parsed_screen_routes) < len(screen_images):
+            # If some routes provided, use them and auto-generate the rest
+            for i in range(len(parsed_screen_routes), len(screen_images)):
+                parsed_screen_routes.append(f"/screen{i+1}")
+        elif len(parsed_screen_routes) > len(screen_images):
+            # If more routes provided than files, truncate to match file count
+            parsed_screen_routes = parsed_screen_routes[:len(screen_images)]
+        
         # Generate multi-screen project
         result = await service.generate_multi_screen_project(
             screen_images=screen_images,
@@ -413,14 +435,8 @@ async def agent_generate_multi_screen_react(
     parsed_screen_names = None
     parsed_screen_routes = None
     
-    # Parse screen names and routes
-    if screen_names:
-        parsed_screen_names = [name.strip() for name in screen_names.split(',')]
-    if screen_routes:
-        parsed_screen_routes = [route.strip() for route in screen_routes.split(',')]
-    
     try:
-        # Process all files
+        # Process all files FIRST - we need to know how many files we have
         for idx, file in enumerate(files):
             # Validate file type
             if file.content_type not in allowed_types:
@@ -441,17 +457,61 @@ async def agent_generate_multi_screen_react(
             image_data = base64.b64encode(file_content).decode('utf-8')
             screen_images.append(image_data)
         
-        # Ensure screen names and routes match number of files
-        if parsed_screen_names and len(parsed_screen_names) != len(screen_images):
-            raise HTTPException(
-                status_code=400,
-                detail=f"Number of screen names ({len(parsed_screen_names)}) must match number of files ({len(screen_images)})"
-            )
+        # NOW parse and auto-generate screen names and routes AFTER processing files
+        # This ensures we know the exact number of files
+        # Handle empty strings, "string" placeholder from Swagger, and None
+        if screen_names and screen_names.strip() and screen_names.strip().lower() not in ['string', '']:
+            parsed_screen_names = [name.strip() for name in screen_names.split(',') if name.strip()]
+        else:
+            parsed_screen_names = []  # Empty list - will be auto-generated
         
-        if parsed_screen_routes and len(parsed_screen_routes) != len(screen_images):
+        if screen_routes and screen_routes.strip() and screen_routes.strip().lower() not in ['string', '']:
+            parsed_screen_routes = [route.strip() for route in screen_routes.split(',') if route.strip()]
+        else:
+            parsed_screen_routes = []  # Empty list - will be auto-generated
+            
+        # Auto-generate or truncate screen names to match file count
+        if len(parsed_screen_names) == 0:
+            parsed_screen_names = [f"Screen{i+1}" for i in range(len(screen_images))]
+            print(f"🔧 Auto-generated {len(parsed_screen_names)} screen names: {parsed_screen_names}")
+        elif len(parsed_screen_names) < len(screen_images):
+            # If some names provided, use them and auto-generate the rest
+            print(f"🔧 Auto-generating {len(screen_images) - len(parsed_screen_names)} missing screen names...")
+            for i in range(len(parsed_screen_names), len(screen_images)):
+                parsed_screen_names.append(f"Screen{i+1}")
+            print(f"   Final screen names: {parsed_screen_names}")
+        elif len(parsed_screen_names) > len(screen_images):
+            # If more names provided than files, truncate to match file count
+            print(f"🔧 Truncating {len(parsed_screen_names)} screen names to match {len(screen_images)} files...")
+            parsed_screen_names = parsed_screen_names[:len(screen_images)]
+            print(f"   Final screen names: {parsed_screen_names}")
+        
+        if not parsed_screen_routes or len(parsed_screen_routes) == 0:
+            # Default routes: first is "/", rest are "/screen2", "/screen3", etc.
+            parsed_screen_routes = ["/"] if len(screen_images) == 1 else ["/"] + [f"/screen{i+1}" for i in range(1, len(screen_images))]
+            print(f"🔧 Auto-generated {len(parsed_screen_routes)} screen routes: {parsed_screen_routes}")
+        elif len(parsed_screen_routes) < len(screen_images):
+            # If some routes provided, use them and auto-generate the rest
+            print(f"🔧 Auto-generating {len(screen_images) - len(parsed_screen_routes)} missing screen routes...")
+            for i in range(len(parsed_screen_routes), len(screen_images)):
+                parsed_screen_routes.append(f"/screen{i+1}")
+            print(f"   Final screen routes: {parsed_screen_routes}")
+        elif len(parsed_screen_routes) > len(screen_images):
+            # If more routes provided than files, truncate to match file count
+            print(f"🔧 Truncating {len(parsed_screen_routes)} screen routes to match {len(screen_images)} files...")
+            parsed_screen_routes = parsed_screen_routes[:len(screen_images)]
+            print(f"   Final screen routes: {parsed_screen_routes}")
+        
+        # Final validation - ensure counts match (they should after auto-generation)
+        if len(parsed_screen_names) != len(screen_images):
             raise HTTPException(
-                status_code=400,
-                detail=f"Number of routes ({len(parsed_screen_routes)}) must match number of files ({len(screen_images)})"
+                status_code=500,
+                detail=f"Internal error: Screen names count ({len(parsed_screen_names)}) doesn't match files count ({len(screen_images)}) after auto-generation"
+            )
+        if len(parsed_screen_routes) != len(screen_images):
+            raise HTTPException(
+                status_code=500,
+                detail=f"Internal error: Screen routes count ({len(parsed_screen_routes)}) doesn't match files count ({len(screen_images)}) after auto-generation"
             )
         
         # Process with LangGraph agent
