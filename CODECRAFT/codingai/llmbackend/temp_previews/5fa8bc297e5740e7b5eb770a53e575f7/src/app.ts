@@ -1,0 +1,1 @@
+Here's a production-ready TypeScript file for your backend using Node.js, Express.js, Mongoose, TypeScript, JWT, RBAC, and zod:

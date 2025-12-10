@@ -1,0 +1,1 @@
+Certainly! Below is a production-ready TypeScript file for setting up Mongoose connection with MongoDB in your Node.js application. This file is located at `src/config/mongoose.ts`.

@@ -1,0 +1,1 @@
+Certainly! Below is a production-ready TypeScript file for handling patient-related API endpoints in a hospital management system using Node.js, Express.js, Mongoose, TypeScript, JWT, RBAC, and zod.

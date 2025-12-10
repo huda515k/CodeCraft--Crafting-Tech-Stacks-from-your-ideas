@@ -1,0 +1,1 @@
+Sure! Below is a production-ready TypeScript file for a Mongoose model for the `Patient` entity, using Zod for validation and JWT for authentication.

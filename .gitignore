@@ -86,7 +86,6 @@ gemini-cli/
 outputs/
 sample ui images/
 uploads/
-CODECRAFT/
 *.zip
 *.bak
 .env.backup

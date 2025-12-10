@@ -1,0 +1,1 @@
+Certainly! Below is a production-ready TypeScript file for a Mongoose model named `Doctor` with validation using zod. This model includes fields such as name, email, password, and role, along with basic RBAC (Role-Based Access Control).

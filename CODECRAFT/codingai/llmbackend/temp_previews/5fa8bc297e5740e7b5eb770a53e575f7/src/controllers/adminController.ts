@@ -1,0 +1,1 @@
+Here's an example of a production-ready TypeScript file for handling admin-related operations in a hospital management system. This file includes routes for creating, reading, updating, and deleting admin accounts.

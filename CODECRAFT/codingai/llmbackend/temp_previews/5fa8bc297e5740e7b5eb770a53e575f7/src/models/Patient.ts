@@ -1,0 +1,1 @@
+Here's a production-ready TypeScript file for the `Patient` model using Mongoose, TypeScript, zod, JWT, RBAC, and Express.js:
