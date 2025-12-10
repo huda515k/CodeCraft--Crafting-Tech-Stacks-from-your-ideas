@@ -110,16 +110,15 @@ class GeminiWrapper:
             }
             return vision_model_mapping.get(model, "gemini-1.5-flash")  # Default to vision-capable model
         
-        # Text-only models - use stable models that are widely available
+        # Text-only models
         cli_model_mapping = {
-            "gemini-flash-latest": "gemini-1.5-flash",  # Use stable instead of experimental
-            "gemini-2.5-flash": "gemini-1.5-flash",  # Use stable instead of experimental
+            "gemini-flash-latest": "gemini-2.0-flash-exp",
+            "gemini-2.5-flash": "gemini-2.0-flash-exp",
             "gemini-2.5-pro": "gemini-1.5-pro",
-            "gemini-2.5-flash-lite": "gemini-1.5-flash",  # Use stable instead of experimental
+            "gemini-2.5-flash-lite": "gemini-2.0-flash-exp",
             "gemini-3-pro-preview": "gemini-1.5-pro",
         }
-        # Default to stable model instead of experimental
-        return cli_model_mapping.get(model, "gemini-1.5-flash")
+        return cli_model_mapping.get(model, "gemini-2.0-flash-exp")
     
     async def generate_text(self, prompt: str) -> str:
         """Generate text response from prompt"""
@@ -185,7 +184,10 @@ class GeminiWrapper:
                             return await self._generate_with_image_cli(prompt, image_data, mime_type)
                         except Exception as cli_error:
                             # If CLI also fails, raise with both errors
-                            raise Exception(f"Both API and CLI failed. API error: {error_str[:200]}. CLI error: {str(cli_error)[:200]}")
+                            if "quota is exhausted" in str(cli_error).lower() or "error when talking to gemini api" in str(cli_error).lower():
+                                raise Exception(f"Both API and CLI failed for image processing due to exhausted Gemini API quota. Please wait for quota reset or use a different Google account. API error: {error_str[:200]}. CLI error: {str(cli_error)[:200]}")
+                            else:
+                                raise Exception(f"Both API and CLI failed. API error: {error_str[:200]}. CLI error: {str(cli_error)[:200]}")
                     else:
                         # No CLI available, raise with helpful message
                         raise Exception(f"API error and CLI not available. Please install Gemini CLI: npm install -g @google/generative-ai-cli && gemini-cli auth login")
@@ -487,42 +489,28 @@ class GeminiWrapper:
                     # Use gemini syntax with @ for image: gemini -m MODEL "prompt @image.jpg"
                     # This embeds the image in the prompt string
                     prompt_with_image = f"{prompt} @{tmp_path}"
-                
+                result = await asyncio.get_event_loop().run_in_executor(
+                    None,
+                    lambda: subprocess.run(
+                        [
+                            "gemini",
+                                "-m", cli_model,
+                            "--output-format", "json",
+                                prompt_with_image
+                        ],
+                        capture_output=True,
+                        text=True,
+                            timeout=180  # Longer timeout for image processing
+                    )
+                )
                 
                 if result.returncode != 0:
                     error_msg = result.stderr or result.stdout
                     print(f"⚠️  CLI image processing failed (exit code {result.returncode})")
                     print(f"   Error output: {error_msg[:500]}")
-                    
-                    # Try to read the full error report if mentioned
-                    detailed_error = error_msg
-                    if "Full report available at:" in error_msg:
-                        try:
-                            import re
-                            match = re.search(r'Full report available at: (.+)', error_msg)
-                            if match:
-                                error_report_path = match.group(1).strip()
-                                if os.path.exists(error_report_path):
-                                    with open(error_report_path, 'r') as f:
-                                        error_report = json.load(f)
-                                        error_details = error_report.get("error", {})
-                                        detailed_msg = error_details.get("message", str(error_details))
-                                        error_code = error_details.get("code", "")
-                                        if detailed_msg and detailed_msg != "[object Object]":
-                                            detailed_error = f"{error_msg}\nDetailed error: {detailed_msg}"
-                                            if error_code:
-                                                detailed_error += f"\nError code: {error_code}"
-                        except Exception as read_error:
-                            pass  # If we can't read the report, use the original error
-                    
-                    # Check for specific error types
-                    if "Error when talking to Gemini API" in error_msg:
-                        # CLI also uses the same API, so if API quota is exhausted, CLI will also fail
-                        raise Exception(f"Gemini CLI failed: The CLI uses the same Gemini API, and it appears the API quota is exhausted for both API key and CLI OAuth credentials. Please wait for quota reset or use a different Google account. Original error: {detailed_error[:800]}")
-                    
                     # If CLI fails, we can't fall back to API (API quota is exhausted)
                     # So we raise the error with helpful message
-                    raise Exception(f"Gemini CLI image processing failed: {detailed_error[:800]}. Please check that Gemini CLI is properly installed and authenticated: npm install -g @google/generative-ai-cli && gemini auth login")
+                    raise Exception(f"Gemini CLI image processing failed: {error_msg[:500]}. Please check that Gemini CLI is properly installed and authenticated: npm install -g @google/generative-ai-cli && gemini-cli auth login")
                 
                 # Parse JSON response
                 try:
