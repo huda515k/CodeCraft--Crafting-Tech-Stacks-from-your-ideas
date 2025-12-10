@@ -94,6 +94,8 @@ class UIParser:
     def _create_ui_analysis_prompt(self, additional_context: Optional[str] = None) -> str:
         """Create a comprehensive prompt for UI analysis"""
         base_prompt = """
+IMPORTANT: You MUST return ONLY valid JSON. Do not include any explanatory text, markdown formatting, or code blocks. Return ONLY the raw JSON object.
+
 Analyze this UI design image (can be from Figma, Canva, or a screenshot) and extract the following information in JSON format:
 
 1. **Layout Structure**:
@@ -211,9 +213,9 @@ Return the result as a valid JSON object with this structure:
     },
     "typography": {
         "font_family": "Arial, sans-serif",
-        "font_size": "16px",
-        "font_weight": "400",
-        "line_height": "1.5",
+        "font_size": "16px",  // MUST be a single string value, NOT a dictionary
+        "font_weight": "400",  // MUST be a single string value, NOT a dictionary
+        "line_height": "1.5",  // MUST be a single string value, NOT a dictionary
         "color": {"hex": "#000000"}
     },
     "metadata": {
@@ -256,6 +258,14 @@ CRITICAL FORMATTING REQUIREMENTS:
 - For position.x and position.y, provide exact pixel coordinates relative to parent or viewport
 - For colors, ALWAYS provide hex code - extract the exact color from the image, not approximations
 - Preserve ALL positioning information - if an element is at x: 100, y: 200, include those exact values
+- CRITICAL: For typography.font_size, typography.font_weight, and typography.line_height, provide ONLY a SINGLE string value (e.g., "16px", "400", "1.5"). Do NOT provide a dictionary with multiple values like {"h1": "24px", "body": "16px"}. Use the most common/default value for the UI.
+
+CRITICAL OUTPUT FORMAT:
+- Return ONLY the JSON object, nothing else
+- Do NOT wrap it in markdown code blocks (no ```json or ```)
+- Do NOT include any explanatory text before or after the JSON
+- Start directly with { and end with }
+- Ensure the JSON is valid and parseable
 """
         
         if additional_context:
@@ -265,7 +275,7 @@ CRITICAL FORMATTING REQUIREMENTS:
     
     async def _analyze_with_gemini(self, image_bytes: bytes, prompt: str) -> str:
         """Analyze image with Gemini (CLI or API, auto-detected)"""
-            try:
+        try:
             # Use wrapper - it handles both CLI and API
             response = await self.gemini.generate_with_image(
                 prompt=prompt,
@@ -276,8 +286,9 @@ CRITICAL FORMATTING REQUIREMENTS:
                 raise Exception("Gemini returned empty response")
                 
             print(f"Gemini response received, length: {len(response)}")
+            print(f"Gemini response (first 500 chars): {response[:500]}")
+            print(f"Gemini response (last 200 chars): {response[-200:]}")
             return response
-            
             
         except Exception as e:
             error_msg = f"Error calling Gemini: {str(e)}"
@@ -288,14 +299,34 @@ CRITICAL FORMATTING REQUIREMENTS:
         """Parse Gemini response and extract UI analysis"""
         try:
             print(f"Raw Gemini response (first 500 chars): {response_text[:500]}")
+            print(f"Full response length: {len(response_text)}")
             
             # Try to extract JSON from response
             json_start = response_text.find('{')
             json_end = response_text.rfind('}') + 1
             
             if json_start == -1 or json_end == 0:
+                print(f"⚠️  No JSON found in response")
                 print(f"Full response: {response_text}")
-                raise ValueError(f"No JSON found in response. Response length: {len(response_text)}")
+                
+                # Try to extract JSON from markdown code blocks
+                import re
+                # Look for ```json ... ``` or ``` ... ```
+                json_block_match = re.search(r'```(?:json)?\s*\n(.*?)\n```', response_text, re.DOTALL)
+                if json_block_match:
+                    json_str = json_block_match.group(1).strip()
+                    print(f"✅ Found JSON in code block, extracting...")
+                    try:
+                        parsed_data = json.loads(json_str)
+                        json_start = 0
+                        json_end = len(json_str)
+                        response_text = json_str  # Use the extracted JSON
+                    except json.JSONDecodeError:
+                        pass
+                
+                if json_start == -1 or json_end == 0:
+                    # Still no JSON found
+                    raise ValueError(f"No JSON found in response. Response length: {len(response_text)}. Response preview: {response_text[:200]}... This might be a plain text response from CLI. The CLI may need to be configured to return JSON format.")
             
             json_str = response_text[json_start:json_end]
             print(f"Extracted JSON (first 500 chars): {json_str[:500]}")
@@ -339,6 +370,57 @@ CRITICAL FORMATTING REQUIREMENTS:
         """Clean and normalize parsed data to fix common issues"""
         if not isinstance(data, dict):
             return data
+        
+        # Clean typography fields - convert dictionaries to strings
+        if "typography" in data and isinstance(data["typography"], dict):
+            typography = data["typography"]
+            
+            # Handle font_size - if it's a dict, extract the most common/default value
+            if "font_size" in typography and isinstance(typography["font_size"], dict):
+                font_sizes = typography["font_size"]
+                # Try to get 'body' or 'default' or the first value
+                if "body" in font_sizes:
+                    typography["font_size"] = str(font_sizes["body"])
+                elif "default" in font_sizes:
+                    typography["font_size"] = str(font_sizes["default"])
+                elif font_sizes:
+                    # Get the first value
+                    typography["font_size"] = str(list(font_sizes.values())[0])
+                else:
+                    typography["font_size"] = None
+                print(f"⚠️  Converted font_size dict to string: {typography['font_size']}")
+            
+            # Handle font_weight - if it's a dict, extract the most common/default value
+            if "font_weight" in typography and isinstance(typography["font_weight"], dict):
+                font_weights = typography["font_weight"]
+                # Try to get 'body' or 'default' or the first value
+                if "body" in font_weights:
+                    typography["font_weight"] = str(font_weights["body"])
+                elif "default" in font_weights:
+                    typography["font_weight"] = str(font_weights["default"])
+                elif "regular" in font_weights:
+                    typography["font_weight"] = str(font_weights["regular"])
+                elif font_weights:
+                    # Get the first value
+                    typography["font_weight"] = str(list(font_weights.values())[0])
+                else:
+                    typography["font_weight"] = None
+                print(f"⚠️  Converted font_weight dict to string: {typography['font_weight']}")
+            
+            # Handle line_height - if it's a dict, extract the most common/default value
+            if "line_height" in typography and isinstance(typography["line_height"], dict):
+                line_heights = typography["line_height"]
+                # Try to get 'body' or 'default' or the first value
+                if "body" in line_heights:
+                    typography["line_height"] = str(line_heights["body"])
+                elif "default" in line_heights:
+                    typography["line_height"] = str(line_heights["default"])
+                elif line_heights:
+                    # Get the first value
+                    typography["line_height"] = str(list(line_heights.values())[0])
+                else:
+                    typography["line_height"] = None
+                print(f"⚠️  Converted line_height dict to string: {typography['line_height']}")
         
         # Clean components
         if "components" in data and isinstance(data["components"], list):

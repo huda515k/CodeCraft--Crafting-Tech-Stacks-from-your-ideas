@@ -164,15 +164,37 @@ def check_server_running():
         return False
 
 @pytest.fixture
-def check_api_key():
-    """Check if GEMINI_API_KEY is set"""
-    return os.getenv("GEMINI_API_KEY") is not None
+def check_gemini_cli():
+    """Check if Gemini CLI is installed and available"""
+    import subprocess
+    try:
+        # Try both 'gemini' and 'gemini-cli' commands
+        for cmd in ["gemini", "gemini-cli"]:
+            try:
+                result = subprocess.run(
+                    [cmd, "--version"],
+                    capture_output=True,
+                    timeout=5
+                )
+                if result.returncode == 0:
+                    return True
+            except (FileNotFoundError, subprocess.TimeoutExpired):
+                continue
+        return False
+    except Exception:
+        return False
 
 @pytest.fixture
-def skip_if_no_api_key(check_api_key):
-    """Skip test if API key is not set"""
-    if not check_api_key:
-        pytest.skip("GEMINI_API_KEY not set")
+def skip_if_no_api_key(check_gemini_cli):
+    """Skip test if Gemini CLI is not available (backward compatibility)"""
+    if not check_gemini_cli:
+        pytest.skip("Gemini CLI not available. Install with: npm install -g @google/generative-ai-cli && gemini-cli auth login")
+
+@pytest.fixture
+def skip_if_no_gemini_cli(check_gemini_cli):
+    """Skip test if Gemini CLI is not available"""
+    if not check_gemini_cli:
+        pytest.skip("Gemini CLI not available. Install with: npm install -g @google/generative-ai-cli && gemini-cli auth login")
 
 @pytest.fixture
 def skip_if_server_down(check_server_running):

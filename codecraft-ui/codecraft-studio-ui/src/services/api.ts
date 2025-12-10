@@ -72,7 +72,7 @@ export const api = {
     stylingApproach: string = 'css-modules',
     includeTypeScript: boolean = true
   ) {
-    // Use single screen endpoint for one file, multi-screen for multiple
+    // Use AI agent endpoint for single file, Claude agent for multiple files
     if (files.length === 1) {
       return this.generateSingleUIToFrontend(
         files[0],
@@ -83,16 +83,17 @@ export const api = {
       );
     }
 
+    // Use Claude agent endpoint for multiple UI images
     const formData = new FormData();
     files.forEach((file) => formData.append('files', file));
     if (additionalContext) {
       formData.append('additional_context', additionalContext);
     }
-    formData.append('framework', framework);
-    formData.append('styling_approach', stylingApproach);
+    formData.append('project_name', 'multi-screen-app');
     formData.append('include_typescript', includeTypeScript.toString());
+    formData.append('styling_approach', stylingApproach);
 
-    const response = await fetch(`${API_BASE_URL}/frontend/generate-multi-screen`, {
+    const response = await fetch(`${API_BASE_URL}/frontend/claudeAgent/Multiple_ui_to_React`, {
       method: 'POST',
       body: formData,
     });
@@ -112,16 +113,18 @@ export const api = {
     stylingApproach: string = 'css-modules',
     includeTypeScript: boolean = true
   ) {
+    // Use AI agent endpoint for single UI image
     const formData = new FormData();
     formData.append('file', file);
     if (additionalContext) {
       formData.append('additional_context', additionalContext);
     }
+    formData.append('project_name', 'react-app');
     formData.append('framework', framework);
     formData.append('styling_approach', stylingApproach);
     formData.append('include_typescript', includeTypeScript.toString());
 
-    const response = await fetch(`${API_BASE_URL}/frontend/generate-react`, {
+    const response = await fetch(`${API_BASE_URL}/frontend/agent/generate-react`, {
       method: 'POST',
       body: formData,
     });

@@ -90,7 +90,7 @@ class TestPromptAnalysis:
     
     def test_tc033_fallback_parser(self, skip_if_server_down):
         """TC033: Verify fallback parser"""
-        # Test with invalid API key scenario (if possible)
+        # Test with invalid Gemini CLI scenario (if possible)
         # This may require mocking, so we check that the endpoint handles errors gracefully
         data = {
             "prompt": "Create a simple system"

@@ -28,10 +28,26 @@ def main():
         print("   Make sure the server is running: python3 main.py")
         print()
     
-    # Check for API key
-    api_key = os.getenv("GEMINI_API_KEY")
-    if not api_key:
-        print("⚠️  Warning: GEMINI_API_KEY not set")
+    # Check for Gemini CLI
+    import subprocess
+    cli_available = False
+    for cmd in ["gemini", "gemini-cli"]:
+        try:
+            result = subprocess.run(
+                [cmd, "--version"],
+                capture_output=True,
+                timeout=5
+            )
+            if result.returncode == 0:
+                cli_available = True
+                print(f"✅ Found Gemini CLI: {cmd}")
+                break
+        except (FileNotFoundError, subprocess.TimeoutExpired):
+            continue
+    
+    if not cli_available:
+        print("⚠️  Warning: Gemini CLI not available")
+        print("   Install with: npm install -g @google/generative-ai-cli && gemini-cli auth login")
         print("   Some tests may be skipped")
         print()
     

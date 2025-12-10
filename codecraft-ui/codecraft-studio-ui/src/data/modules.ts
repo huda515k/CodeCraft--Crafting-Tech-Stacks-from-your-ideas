@@ -7,7 +7,7 @@ export const modules: Module[] = [
     description: 'Generate Express.js backend from React frontend code',
     icon: '🔄',
     acceptsFiles: true,
-    fileTypes: ['.jsx', '.tsx', '.js', '.ts'],
+    fileTypes: ['.zip', '.jsx', '.tsx', '.js', '.ts'],
   },
   {
     id: 'backend-to-frontend',

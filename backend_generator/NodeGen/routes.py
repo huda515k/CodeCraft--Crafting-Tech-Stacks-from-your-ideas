@@ -14,7 +14,7 @@ import asyncio
 from datetime import datetime
 
 from backend_generator.OllamabasedGeneration.module1_core import (
-    prompt_to_backend,
+    prompt_to_backend as generate_backend_from_prompt,
     frontend_to_backend,
     extract_files,
     extract_api_map,
@@ -55,7 +55,7 @@ async def prompt_to_backend_stream(
             })
             
             # Stream LLM output and collect (like Streamlit does)
-            generator = prompt_to_backend(prompt, arch_type)
+            generator = generate_backend_from_prompt(prompt, arch_type)
             full_output = ""
             
             # Stream every chunk immediately for real-time preview (like Streamlit's stream_display)
@@ -183,7 +183,8 @@ async def prompt_to_backend(
     """
     try:
         # Stream LLM output and collect
-        generator = prompt_to_backend(prompt, arch_type)
+        # Note: This will block the event loop, but works for non-streaming endpoint
+        generator = generate_backend_from_prompt(prompt, arch_type)
         full_output = ""
         for chunk in generator:
             text = getattr(chunk, "content", None) or str(chunk)
@@ -341,6 +342,9 @@ async def frontend_to_backend_endpoint(
     try:
         uploaded_zip = await file.read()
         frontend_code = extract_frontend_code(io.BytesIO(uploaded_zip))
+        
+        # Stream LLM output and collect
+        # Note: This will block the event loop, but works for non-streaming endpoint
         generator = frontend_to_backend(frontend_code, arch_type)
         full_output = ""
         for chunk in generator:

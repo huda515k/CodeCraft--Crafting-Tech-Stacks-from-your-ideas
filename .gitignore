@@ -86,8 +86,12 @@ gemini-cli/
 outputs/
 sample ui images/
 uploads/
+CODECRAFT/
 *.zip
 *.bak
+.env.backup
+test_results.txt
+FRONTEND_BACKEND_ENDPOINTS.md
 
 # Exclude all .md files except README.md
 *.md

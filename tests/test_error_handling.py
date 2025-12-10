@@ -14,8 +14,8 @@ class TestErrorHandling:
     """TC079-TC085: Error Handling Tests"""
     
     def test_tc079_missing_api_key(self, sample_png_image, skip_if_server_down):
-        """TC079: Verify handling of missing API key"""
-        # This test checks server response when API key is missing
+        """TC079: Verify handling of missing Gemini CLI"""
+        # This test checks server response when Gemini CLI is not available
         # Note: If key is set, test may pass, which is expected
         with open(sample_png_image, 'rb') as f:
             files = {'file': ('test.png', f, 'image/png')}
@@ -28,7 +28,7 @@ class TestErrorHandling:
         assert response.status_code in [200, 500]
         if response.status_code == 500:
             error_text = response.text.lower()
-            assert "api key" in error_text or "gemini" in error_text or "key" in error_text
+            assert "gemini" in error_text.lower() or "cli" in error_text.lower() or "api key" in error_text.lower()
     
     def test_tc080_invalid_format(self, invalid_image_file, skip_if_server_down):
         """TC080: Verify handling of invalid image format"""

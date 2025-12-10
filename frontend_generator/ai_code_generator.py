@@ -98,6 +98,8 @@ class AIReactCodeGenerator:
                 print(f"📦 Parsed {len(files)} files from response")
                 if files:
                     print(f"   Files: {list(files.keys())[:10]}...")  # Show first 10
+                    # Post-process: Remove any image imports from generated code
+                    files = self._remove_image_imports(files)
                     return files
                 else:
                     raise ValueError("Parsing returned empty files dict")
@@ -275,15 +277,29 @@ IMPORTANT:
 - Each component MUST match its position, colors, spacing, and typography from the UI analysis
 - DO NOT generate placeholder or fallback code - generate the ACTUAL UI components
 - The generated code MUST be complete and runnable
+- **CRITICAL: DO NOT import or reference any external image files (PNG, JPG, SVG, etc.)**
+  - If you see icons/images in the UI, use:
+    * Unicode emoji (🎨, 📱, ⚙️, 🏠, etc.) for simple icons
+    * Inline SVG for icons (create the SVG code directly in the component)
+    * CSS background colors/gradients to represent images
+    * Placeholder divs with background colors matching the image colors
+  - NEVER use: import icon from "/assets/icon.png" or import icon from "../assets/icon.png"
+  - NEVER use: <img src="/assets/image.png" /> or <img src="../assets/image.png" />
+  - NEVER use: require() for images
+  - If an image is required, create a placeholder div with appropriate styling and background color
 
-Generate the complete project now, following the exact format above:
-4. Ensure all imports are correct
-5. Make the code production-ready and well-structured
-6. The generated UI must match the design pixel-perfectly
-7. All elements must be properly aligned and not scattered
-8. Use proper React patterns (functional components, hooks if needed)
+IMAGE/ASSET HANDLING - CRITICAL:
+- DO NOT import any image files (PNG, JPG, SVG, etc.)
+- DO NOT use <img src="/path/to/image.png" /> or <img src="../path/to/image.png" />
+- DO NOT use import statements for images (e.g., import icon from "/assets/icon.png")
+- DO NOT use require() for images
+- Instead, for icons: use Unicode emoji or inline SVG created directly in the component
+- Instead, for images: use CSS background colors, gradients, or placeholder divs
+- Create visual representation using CSS only
+- Example for icon: <span style={{fontSize: '24px'}}>🎨</span> or create inline SVG
+- Example for image placeholder: <div style={{backgroundColor: '#color', width: '100px', height: '100px', borderRadius: '4px'}}></div>
 
-Generate the complete project now:"""
+Generate the complete project now. Remember: NO image imports, use CSS/emoji/inline SVG only."""
         
         return prompt
     
@@ -366,6 +382,45 @@ Generate the complete project now:"""
         
         return files
     
+    def _remove_image_imports(self, files: Dict[str, str]) -> Dict[str, str]:
+        """Remove image imports from generated code and replace with placeholders"""
+        import re
+        
+        cleaned_files = {}
+        
+        for file_path, code in files.items():
+            # Only process TypeScript/JavaScript/TSX/JSX files
+            if not file_path.endswith(('.ts', '.tsx', '.js', '.jsx')):
+                cleaned_files[file_path] = code
+                continue
+            
+            cleaned_code = code
+            
+            # Remove image import statements
+            # Pattern: import ... from "...png" or import ... from "...jpg" etc.
+            image_import_pattern = r'import\s+[^"\'`]+\s+from\s+["\'`][^"\']*\.(png|jpg|jpeg|gif|svg|webp|ico)["\'`];?\s*\n?'
+            cleaned_code = re.sub(image_import_pattern, '', cleaned_code, flags=re.IGNORECASE | re.MULTILINE)
+            
+            # Remove require() for images
+            require_pattern = r'require\(["\'`][^"\']*\.(png|jpg|jpeg|gif|svg|webp|ico)["\'`]\)'
+            cleaned_code = re.sub(require_pattern, '""', cleaned_code, flags=re.IGNORECASE)
+            
+            # Replace <img src="...png"> with placeholder div
+            img_tag_pattern = r'<img\s+[^>]*src=["\'`][^"\']*\.(png|jpg|jpeg|gif|svg|webp|ico)["\'`][^>]*/?>'
+            def replace_img(match):
+                # Extract alt text if present
+                alt_match = re.search(r'alt=["\']([^"\']*)["\']', match.group(0))
+                alt_text = alt_match.group(1) if alt_match else 'Image'
+                return f'<div style={{"backgroundColor": "#e0e0e0", "width": "100%", "height": "100px", "display": "flex", "alignItems": "center", "justifyContent": "center", "color": "#999"}}>{alt_text}</div>'
+            cleaned_code = re.sub(img_tag_pattern, replace_img, cleaned_code, flags=re.IGNORECASE)
+            
+            if cleaned_code != code:
+                print(f"   🧹 Cleaned image imports from {file_path}")
+            
+            cleaned_files[file_path] = cleaned_code
+        
+        return cleaned_files
+
     def _generate_fallback_files(
         self, 
         include_typescript: bool, 
@@ -385,12 +440,14 @@ Generate the complete project now:"""
                     "preview": "vite preview"
                 },
                 "dependencies": {
-                    "react": "^18.2.0",
-                    "react-dom": "^18.2.0"
+                    "react": "^18.3.1",
+                    "react-dom": "^18.3.1",
+                    "lucide-react": "^0.468.0"  # Common icon library
                 },
                 "devDependencies": {
-                    "@vitejs/plugin-react": "^4.0.0",
-                    "vite": "^4.4.0"
+                    "@vitejs/plugin-react": "^4.3.1",
+                    "vite": "^5.4.0",
+                    **({"typescript": "^5.6.0", "@types/react": "^18.3.12", "@types/react-dom": "^18.3.1"} if include_typescript else {})
                 }
             }, indent=2),
             f"vite.config.{'ts' if include_typescript else 'js'}": f"""import {{ defineConfig }} from 'vite'

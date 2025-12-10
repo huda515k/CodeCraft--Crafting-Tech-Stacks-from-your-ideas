@@ -29,11 +29,25 @@ def run_tests():
         print("   Tests will be skipped. Start server with: python3 main.py")
         print()
     
-    # Check API key
-    import os
-    api_key_set = os.getenv("GEMINI_API_KEY") is not None
-    if not api_key_set:
-        print("⚠️  WARNING: GEMINI_API_KEY not set")
+    # Check Gemini CLI
+    import subprocess
+    cli_available = False
+    for cmd in ["gemini", "gemini-cli"]:
+        try:
+            result = subprocess.run(
+                [cmd, "--version"],
+                capture_output=True,
+                timeout=5
+            )
+            if result.returncode == 0:
+                cli_available = True
+                break
+        except (FileNotFoundError, subprocess.TimeoutExpired):
+            continue
+    
+    if not cli_available:
+        print("⚠️  WARNING: Gemini CLI not available")
+        print("   Install with: npm install -g @google/generative-ai-cli && gemini-cli auth login")
         print("   Some tests will be skipped")
         print()
     
@@ -58,8 +72,8 @@ def run_tests():
         if 'SKIPPED' in line:
             if 'Server is not running' in line:
                 skip_reasons['server_down'] = skip_reasons.get('server_down', 0) + 1
-            elif 'GEMINI_API_KEY' in line or 'API key' in line:
-                skip_reasons['no_api_key'] = skip_reasons.get('no_api_key', 0) + 1
+            elif 'Gemini CLI' in line or 'CLI not available' in line or 'GEMINI_API_KEY' in line or 'API key' in line:
+                skip_reasons['no_gemini_cli'] = skip_reasons.get('no_gemini_cli', 0) + 1
             else:
                 skip_reasons['other'] = skip_reasons.get('other', 0) + 1
     
@@ -80,8 +94,8 @@ def run_tests():
         for reason, count in skip_reasons.items():
             if reason == 'server_down':
                 print(f"  - Server not running: {count} tests")
-            elif reason == 'no_api_key':
-                print(f"  - API key not set: {count} tests")
+            elif reason == 'no_gemini_cli':
+                print(f"  - Gemini CLI not available: {count} tests")
             else:
                 print(f"  - Other: {count} tests")
         print()

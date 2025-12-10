@@ -38,14 +38,29 @@ export function FileUpload({
     const remainingSlots = maxFiles - files.length;
     const filesToAdd = newFiles.slice(0, remainingSlots);
 
-    const uploadedFiles: UploadedFile[] = filesToAdd.map(file => ({
-      id: `${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
-      name: file.name,
-      type: file.type,
-      size: file.size,
-      file,
-      preview: file.type.startsWith('image/') ? URL.createObjectURL(file) : undefined,
-    }));
+    const uploadedFiles: UploadedFile[] = filesToAdd.map(file => {
+      // Detect file type by extension if MIME type is missing (common for ZIP files)
+      let fileType = file.type;
+      if (!fileType || fileType === '') {
+        const extension = file.name.split('.').pop()?.toLowerCase();
+        if (extension === 'zip') {
+          fileType = 'application/zip';
+        } else if (extension === 'jsx') {
+          fileType = 'text/javascript';
+        } else if (extension === 'tsx' || extension === 'ts') {
+          fileType = 'text/typescript';
+        }
+      }
+      
+      return {
+        id: `${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
+        name: file.name,
+        type: fileType,
+        size: file.size,
+        file,
+        preview: fileType.startsWith('image/') ? URL.createObjectURL(file) : undefined,
+      };
+    });
 
     onFilesChange([...files, ...uploadedFiles]);
   };
@@ -62,6 +77,9 @@ export function FileUpload({
     if (type.startsWith('image/')) return <ImageIcon className="w-4 h-4" />;
     if (type.includes('javascript') || type.includes('typescript') || type.includes('json')) {
       return <FileCode className="w-4 h-4" />;
+    }
+    if (type.includes('zip') || type === 'application/zip') {
+      return <File className="w-4 h-4" />;
     }
     return <File className="w-4 h-4" />;
   };
@@ -123,7 +141,18 @@ export function FileUpload({
         <input
           type="file"
           multiple
-          accept={acceptedTypes.join(',')}
+          accept={acceptedTypes.map(type => {
+            // Map file extensions to MIME types for better browser support
+            if (type === '.zip') return 'application/zip,.zip';
+            if (type === '.jsx' || type === '.js') return '.js,.jsx,text/javascript';
+            if (type === '.tsx' || type === '.ts') return '.ts,.tsx,text/typescript';
+            if (type === '.png') return '.png,image/png';
+            if (type === '.jpg' || type === '.jpeg') return '.jpg,.jpeg,image/jpeg';
+            if (type === '.svg') return '.svg,image/svg+xml';
+            if (type === '.json') return '.json,application/json';
+            if (type === '.webp') return '.webp,image/webp';
+            return type;
+          }).join(',')}
           onChange={handleFileSelect}
           className="hidden"
           id="file-upload"
