@@ -97,7 +97,7 @@ def extract_files(full_output: str):
     # 2️⃣ Bold filename headers like **src/App.tsx**
     bold_pattern = re.compile(
         r"\*\*([\w./\\-]+\.\w+)\*\*\s*```[a-zA-Z0-9]*\n([\s\S]*?)```",
-        re.MULTILINE,
+        re.MULTILINE | re.DOTALL,
     )
     for m in bold_pattern.finditer(output):
         path, code = m.groups()
@@ -105,16 +105,19 @@ def extract_files(full_output: str):
             files.append((path.strip(), clean_code_block(code)))
             seen.add(path.strip())
 
-    # 3️⃣ Fenced filename blocks like ```tsx filename=src/App.tsx
+    # 3️⃣ Fenced filename blocks like ```tsx filename=src/App.tsx or ```tsx filename:src/App.tsx
+    # More flexible pattern that handles various formats
     fence_pattern = re.compile(
-        r"```[a-zA-Z0-9]*\s*(?:file(?:name)?\s*[=:]\s*|path\s*[=:]\s*)?([\w./\\-]+\.\w+)\s*\n([\s\S]*?)```",
-        re.MULTILINE,
+        r"```([a-zA-Z0-9]+)?\s*(?:file(?:name)?\s*[=:]\s*|path\s*[=:]\s*)?([\w./\\-]+\.\w+)\s*\n([\s\S]*?)```",
+        re.MULTILINE | re.DOTALL,
     )
     for m in fence_pattern.finditer(output):
-        path, code = m.groups()
-        if path not in seen:
-            files.append((path.strip(), clean_code_block(code)))
-            seen.add(path.strip())
+        lang, path, code = m.groups()
+        path = path.strip() if path else ""
+        # Only add if we have a valid path
+        if path and '.' in path and path not in seen:
+            files.append((path, clean_code_block(code)))
+            seen.add(path)
 
     # 4️⃣ Comment headers — support //, #, <!--
     comment_pattern = re.compile(
@@ -130,7 +133,7 @@ def extract_files(full_output: str):
     # 5️⃣ Markdown headers ## or ###
     header_pattern = re.compile(
         r"#{2,3}\s+([\w./\\-]+\.\w+)\s*\n+([\s\S]*?)(?=(?:^#{2,3}\s)|\Z)",
-        re.MULTILINE,
+        re.MULTILINE | re.DOTALL,
     )
     for m in header_pattern.finditer(output):
         path, code = m.groups()
@@ -149,13 +152,55 @@ def extract_files(full_output: str):
             files.append((path.strip(), clean_code_block(code)))
             seen.add(path.strip())
 
-    # 7️⃣ Fallback anonymous code blocks
+    # 7️⃣ Fallback anonymous code blocks (only if no files found yet)
+    # This is more aggressive - try to extract ANY code blocks and infer filenames
     if not files:
-        anon_pattern = re.compile(r"```[a-zA-Z0-9]*\n([\s\S]*?)```", re.MULTILINE)
+        # Pattern to match any code block, with optional language and filename
+        anon_pattern = re.compile(r"```([a-zA-Z0-9]+)?\s*(?:file(?:name)?\s*[=:]?\s*)?([^\n]*?)\s*\n([\s\S]*?)```", re.MULTILINE | re.DOTALL)
         for i, m in enumerate(anon_pattern.finditer(output), start=1):
-            code = clean_code_block(m.group(1))
-            path = f"unknown_file_{i}.txt"
-            if path not in seen:
+            lang, potential_path, code = m.groups()
+            code = clean_code_block(code)
+            
+            # Skip if code is too short (likely not a real file)
+            if len(code.strip()) < 10:
+                continue
+            
+            # Try to infer filename
+            path = None
+            if potential_path and potential_path.strip():
+                potential_path = potential_path.strip()
+                # Check if it looks like a file path
+                if '.' in potential_path and not potential_path.startswith('🧠') and not potential_path.startswith('✅'):
+                    # Remove common prefixes that might be mistaken for paths
+                    if not any(x in potential_path for x in ['Planning', 'generating', 'complete', 'error']):
+                        path = potential_path
+            
+            # If no path from potential_path, try to infer from language
+            if not path and lang:
+                ext_map = {
+                    'ts': '.ts', 'tsx': '.tsx', 'js': '.js', 'jsx': '.jsx', 
+                    'json': '.json', 'html': '.html', 'css': '.css', 'md': '.md', 
+                    'py': '.py', 'java': '.java', 'go': '.go', 'rs': '.rs'
+                }
+                ext = ext_map.get(lang.lower(), '.txt')
+                # Try to infer filename from common patterns in code
+                if 'App' in code or 'app' in code[:200]:
+                    path = f"src/App{ext}" if ext in ['.tsx', '.ts', '.jsx', '.js'] else f"app{ext}"
+                elif 'package' in code[:200].lower() or '{' in code[:50]:
+                    path = "package.json"
+                elif '<!DOCTYPE' in code or '<html' in code:
+                    path = "index.html"
+                elif 'export default' in code or 'module.exports' in code:
+                    path = f"file_{i}{ext}"
+                else:
+                    path = f"file_{i}{ext}"
+            
+            # Final fallback
+            if not path:
+                path = f"unknown_file_{i}.txt"
+            
+            # Skip if path looks like a status message or is already seen
+            if path and code and not path.startswith('🧠') and not path.startswith('✅') and path not in seen:
                 files.append((path, code))
                 seen.add(path)
 
@@ -211,6 +256,31 @@ def extract_frontend_code(uploaded_zip):
                 except Exception:
                     pass
     return code.strip()
+
+
+def extract_backend_code(uploaded_zip):
+    """
+    Extract backend code from uploaded ZIP file.
+    Concatenates all .js/.ts files (routes, controllers, models, etc.) into a single string.
+    """
+    code = ""
+    with zipfile.ZipFile(uploaded_zip, "r") as z:
+        for f in z.namelist():
+            if f.endswith((".js", ".ts")) and not f.endswith((".d.ts", ".test.js", ".test.ts", ".spec.js", ".spec.ts")):
+                try:
+                    code += f"\n// File: {f}\n" + z.read(f).decode(errors="ignore")
+                except Exception:
+                    pass
+    return code.strip()
+
+
+def backend_to_frontend(backend_code: str):
+    """
+    Generate React frontend from backend code analysis.
+    """
+    from module1_templates import backend_to_frontend_template
+    prompt = backend_to_frontend_template.format(backend_code=backend_code)
+    return frontend_gemini_streaming(prompt)
 
 
 # ============================================================

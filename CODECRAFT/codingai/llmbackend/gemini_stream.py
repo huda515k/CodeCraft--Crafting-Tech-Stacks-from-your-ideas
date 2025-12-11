@@ -82,10 +82,9 @@ Specification:
 - No favicon.ico or <link rel="icon"> in index.html.
 - Import Tailwind from './styles/globals.css' or './index.css' (never '/tailwind.css').
 - Each file must start and end with code fences like:
-```ts filename:src/App.tsx
+```tsx filename:src/App.tsx
 <file content>
 ```
-end with ```end
 - Use `.tsx` for all React/JSX files.
 - Must compile in Vite + TypeScript with Tailwind 3+.
 - Include minimal working UI: header, sidebar, dashboard cards, etc.

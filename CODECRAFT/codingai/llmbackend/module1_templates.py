@@ -399,3 +399,73 @@ Output valid code blocks in format:
 
 Complete every module (models, controllers, routes, middleware, server).
 """
+
+backend_to_frontend_template = """
+You are a **senior frontend engineer**.
+
+Analyze this backend code and generate a **modern React + TypeScript + Tailwind CSS frontend** that matches the backend API structure.
+
+Backend Code:
+{backend_code}
+
+---
+
+### 🔧 Requirements
+
+- Use **Vite + React + TypeScript**
+- Include **all setup files**:
+  - index.html
+  - vite.config.ts
+  - tsconfig.json
+  - tailwind.config.js
+  - postcss.config.js
+  - package.json
+  - tsconfig.node.json
+
+- Folder structure:
+
+index.html
+vite.config.ts
+tsconfig.json
+tailwind.config.js
+postcss.config.js
+package.json
+src/
+main.tsx
+App.tsx
+components/
+pages/
+hooks/
+styles/
+utils/
+
+- Include:
+  - Responsive UI
+  - Clean, maintainable layout
+  - Complete functional pages matching backend routes
+  - API integration using fetch/axios
+  - Reusable UI components (buttons, inputs, modals, cards)
+  - Tailwind for styling (no inline styles except micro cases)
+  - Forms for all POST/PUT endpoints
+  - Lists/tables for all GET endpoints
+
+---
+
+### ⚙️ Output Rules (MANDATORY)
+
+1. **Each file must be inside a properly formatted Markdown code block** like this:
+
+```tsx filename:src/App.tsx
+// full file content here
+```
+
+If the file is not TypeScript (like HTML, CSS, JSON, or JS), use the correct language tag.
+
+Do NOT include any explanations, commentary, or summaries outside of code blocks.
+
+Every file must contain complete runnable code — no placeholders like ..., TODO, or omitted sections.
+
+Ensure imports and file paths are valid and consistent.
+
+Never wrap all files in a single large block — each file must be a separate fenced block.
+"""

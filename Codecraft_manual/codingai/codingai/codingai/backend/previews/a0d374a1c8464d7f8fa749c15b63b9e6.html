@@ -1,0 +1,83 @@
+<!doctype html>
+<html>
+  <head>
+    <meta charset="utf-8" />
+    <title>CodeCraft Preview</title>
+    <style>
+      body {
+        font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+        background: radial-gradient(circle at top, #1f2933, #020617);
+        color: #f9fafb;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        min-height: 100vh;
+      }
+      .card {
+        background: rgba(15, 23, 42, 0.92);
+        border-radius: 16px;
+        padding: 24px 32px;
+        max-width: 720px;
+        box-shadow: 0 20px 45px rgba(0,0,0,0.6);
+        border: 1px solid rgba(148, 163, 184, 0.35);
+      }
+      h1 {
+        font-size: 24px;
+        margin-bottom: 12px;
+        color: #e5e7eb;
+      }
+      h2 {
+        font-size: 16px;
+        margin: 0 0 8px;
+        color: #a5b4fc;
+      }
+      .prompt {
+        font-size: 14px;
+        color: #e5e7eb;
+        background: rgba(30, 64, 175, 0.35);
+        border-radius: 8px;
+        padding: 10px 12px;
+        margin-bottom: 12px;
+        white-space: pre-wrap;
+      }
+      .meta {
+        font-size: 12px;
+        color: #9ca3af;
+        margin-bottom: 4px;
+      }
+      .note {
+        font-size: 11px;
+        color: #6b7280;
+        margin-top: 12px;
+      }
+    </style>
+  </head>
+  <body>
+    <div class="card">
+      <h1>🚀 CodeCraft Preview</h1>
+      <div class="meta">Mode: frontend — Architecture: Monolith</div>
+
+      <h2>Prompt</h2>
+      <div class="prompt">Generate a landing page</div>
+
+      <h2>Sample Build Log (first 500 chars)</h2>
+      <div class="prompt">[INFO] Starting build process for 'Landing Page'
+[INFO] Mode: frontend, Architecture: Monolith
+
+[STEP 1/7] Initializing build environment...
+    [PROGRESS] Checking for essential build tools (HTML minifier, CSS preprocessor, JS bundler)...
+    [SUCCESS] Build environment ready.
+
+[STEP 2/7] Creating project structure...
+    Creating directory 'build/landing-page/'
+    Creating file 'build/landing-page/index.html'
+    Creating file 'build/landing-page/style.css'
+    Creating file 'build/landing-pa</div>
+
+      <div class="note">
+        This is a simple visual preview generated locally.<br/>
+        You can extend the backend to compile and run full React/Vite code here.
+      </div>
+    </div>
+  </body>
+</html>

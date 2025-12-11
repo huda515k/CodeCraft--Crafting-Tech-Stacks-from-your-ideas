@@ -7,6 +7,11 @@ import os
 import base64
 from datetime import datetime
 import io
+import json
+import uuid
+import zipfile
+import sys
+from pathlib import Path
 
 from .models import UIProcessingRequest, UIProcessingResponse
 from .services import FrontendGenerationService
@@ -14,8 +19,24 @@ from .langgraph_agent import LangGraphFrontendAgent
 from .multi_ui_reactgenerator import EnhancedMultiScreenGenerator
 import tempfile
 import shutil
+import asyncio
+import concurrent.futures
+import queue
+
+# Import from Codecraft_manual (Ollama-based UI to Frontend)
+project_root = Path(__file__).parent.parent.parent
+codecraft_llmbackend_path = project_root / "Codecraft_manual" / "codingai" / "llmbackend"
+if str(codecraft_llmbackend_path) not in sys.path:
+    sys.path.insert(0, str(codecraft_llmbackend_path))
 
 router = APIRouter(prefix="/frontend", tags=["Frontend Generation"])
+
+# Temporary storage for generated files (in production, use Redis or database)
+_generated_projects = {}
+
+def format_sse(data: dict) -> str:
+    """Format data as Server-Sent Events."""
+    return f"data: {json.dumps(data)}\n\n"
 
 # Dependency injection for frontend service
 def get_frontend_service():
@@ -123,7 +144,148 @@ async def upload_ui_image(
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Error processing image: {str(e)}")
 
-@router.post("/generate-react")
+@router.post("/agent/generate-react-stream", summary="🤖 Generate React from UI with live streaming")
+async def generate_react_from_ui_stream(
+    file: UploadFile = File(..., description="UI design image file"),
+    additional_context: Optional[str] = Form(None, description="Additional context or instructions"),
+    framework: str = Form("react", description="Target framework"),
+    styling_approach: str = Form("css-modules", description="Styling approach"),
+    include_typescript: bool = Form(True, description="Include TypeScript"),
+    agent: LangGraphFrontendAgent = Depends(get_langgraph_frontend_agent)
+):
+    """
+    🤖 AI Agent: Generate React code from UI design image with live streaming!
+    
+    This endpoint provides real-time progress updates:
+    1. Analyzes your UI design image using AI (streamed)
+    2. Extracts components, styles, and layout (streamed)
+    3. Generates complete React project with all files (streamed)
+    4. Returns downloadable ZIP file
+    
+    Returns Server-Sent Events (SSE) stream with live code generation.
+    """
+    # Read file content BEFORE creating the generator to avoid "I/O operation on closed file" error
+    # Validate file type first
+    allowed_types = ["image/png", "image/jpeg", "image/jpg", "image/gif", "image/bmp"]
+    if file.content_type not in allowed_types:
+        raise HTTPException(
+            status_code=400,
+            detail=f"Unsupported file type. Allowed types: {', '.join(allowed_types)}"
+        )
+    
+    # Check file size and read content
+    max_size = 10 * 1024 * 1024  # 10MB
+    file_content = await file.read()
+    if len(file_content) > max_size:
+        raise HTTPException(
+            status_code=400,
+            detail="File size too large. Maximum size is 10MB"
+        )
+    
+    # Convert to base64 immediately
+    image_data = base64.b64encode(file_content).decode('utf-8')
+    
+    project_id = str(uuid.uuid4())
+    
+    async def generate_and_stream():
+        try:
+            # Send initial message
+            yield format_sse({
+                "type": "start",
+                "project_id": project_id,
+                "message": "🎨 Starting UI analysis and React code generation..."
+            })
+            
+            yield format_sse({
+                "type": "info",
+                "message": "📤 UI image uploaded. Analyzing with AI..."
+            })
+            
+            # Process with LangGraph agent
+            result = await agent.process_ui_to_react(
+                image_data=image_data,
+                additional_context=additional_context,
+                project_name="react-app",
+                include_typescript=include_typescript,
+                styling_approach=styling_approach
+            )
+            
+            if result.get("success") and result.get("project_files"):
+                yield format_sse({
+                    "type": "info",
+                    "message": "✅ UI analyzed successfully! Generating React code..."
+                })
+                
+                project_files = result["project_files"]
+                file_count = len(project_files)
+                
+                yield format_sse({
+                    "type": "info",
+                    "message": f"📦 Generated {file_count} files in React project"
+                })
+                
+                # Stream file previews
+                for file_name, file_content in list(project_files.items())[:15]:
+                    preview = file_content[:1000] + ("..." if len(file_content) > 1000 else "")
+                    yield format_sse({
+                        "type": "file",
+                        "filename": file_name,
+                        "preview": preview,
+                        "size": len(file_content)
+                    })
+                
+                if file_count > 15:
+                    yield format_sse({
+                        "type": "info",
+                        "message": f"... and {file_count - 15} more files"
+                    })
+                
+                # Create ZIP file
+                zip_buffer = io.BytesIO()
+                with zipfile.ZipFile(zip_buffer, 'w', zipfile.ZIP_DEFLATED) as zf:
+                    for file_name, file_content in project_files.items():
+                        zf.writestr(file_name, file_content)
+                
+                zip_bytes = zip_buffer.getvalue()
+                
+                _generated_projects[project_id] = {
+                    "zip_bytes": zip_bytes,
+                    "created_at": datetime.now().isoformat(),
+                    "arch_type": "Frontend",
+                }
+                
+                yield format_sse({
+                    "type": "complete",
+                    "project_id": project_id,
+                    "files_count": file_count,
+                    "download_url": f"/frontend/download/{project_id}",
+                    "message": f"🎉 Frontend generation complete! {file_count} files generated."
+                })
+            else:
+                error_msg = result.get('error_message', 'Unknown error')
+                yield format_sse({
+                    "type": "error",
+                    "message": f"❌ {error_msg}"
+                })
+            
+        except Exception as e:
+            yield format_sse({
+                "type": "error",
+                "message": f"🤖 AI Agent Error: {str(e)}"
+            })
+    
+    return StreamingResponse(
+        generate_and_stream(),
+        media_type="text/event-stream",
+        headers={
+            "Cache-Control": "no-cache",
+            "Connection": "keep-alive",
+            "X-Accel-Buffering": "no"
+        }
+    )
+
+
+@router.post("/generate-react", summary="🤖 Generate React from UI (Legacy - returns ZIP directly)")
 async def generate_react_from_ui(
     file: UploadFile = File(..., description="UI design image file"),
     additional_context: Optional[str] = Form(None, description="Additional context or instructions"),
@@ -149,6 +311,8 @@ async def generate_react_from_ui(
     - 💅 CSS modules or Tailwind support
     - 📘 TypeScript support
     - 🔧 Ready-to-run code
+    
+    For streaming preview, use /agent/generate-react-stream instead.
     """
     # Validate file type
     allowed_types = ["image/png", "image/jpeg", "image/jpg", "image/gif", "image/bmp"]
@@ -898,6 +1062,405 @@ async def claude_agent_multiple_ui_to_react(
             except Exception as cleanup_error:
                 print(f"⚠️  Warning: Could not clean up temp directory {temp_dir}: {cleanup_error}")
 
+@router.get("/download/{project_id}", summary="Download generated frontend ZIP file")
+async def download_project(project_id: str):
+    """
+    Download the generated frontend ZIP file using the project_id from streaming endpoint.
+    """
+    if project_id not in _generated_projects:
+        raise HTTPException(status_code=404, detail="Project not found or expired")
+    
+    project = _generated_projects[project_id]
+    zip_bytes = project["zip_bytes"]
+    
+    from fastapi.responses import Response
+    return Response(
+        content=zip_bytes,
+        media_type="application/zip",
+        headers={
+            "Content-Disposition": f"attachment; filename=frontend_{project_id[:8]}.zip"
+        }
+    )
+
+@router.post("/ollama/generate-react-stream", summary="🎨 Generate React from UI using Ollama local models (streaming)")
+async def generate_react_from_ui_ollama_stream(
+    file: UploadFile = File(..., description="UI design image file"),
+    additional_context: Optional[str] = Form(None, description="Additional context or instructions"),
+    include_typescript: bool = Form(True, description="Include TypeScript"),
+    styling_approach: str = Form("tailwind", description="Styling approach (tailwind or css-modules)")
+):
+    """
+    🎨 Ollama-based: Generate React code from UI design image with live streaming!
+    
+    This endpoint uses Ollama local models:
+    - Vision model (llama3.2-vision/llava) for UI analysis
+    - Qwen2.5-Coder for React code generation
+    
+    Returns Server-Sent Events (SSE) stream with live code generation.
+    """
+    # Validate file type
+    allowed_types = ["image/png", "image/jpeg", "image/jpg", "image/gif", "image/bmp"]
+    if file.content_type not in allowed_types:
+        raise HTTPException(
+            status_code=400,
+            detail=f"Unsupported file type. Allowed types: {', '.join(allowed_types)}"
+        )
+    
+    # Check file size and read content
+    max_size = 10 * 1024 * 1024  # 10MB
+    file_content = await file.read()
+    if len(file_content) > max_size:
+        raise HTTPException(
+            status_code=400,
+            detail="File size too large. Maximum size is 10MB"
+        )
+    
+    project_id = str(uuid.uuid4())
+    
+    async def generate_and_stream():
+        try:
+            # Import Ollama-based UI to frontend
+            from ui_to_frontend_ollama import ui_to_react_pipeline_streaming, extract_react_files, create_project_zip
+            
+            # Send initial message
+            yield format_sse({
+                "type": "start",
+                "project_id": project_id,
+                "message": "🎨 Starting UI analysis with Ollama local models..."
+            })
+            
+            # Run the pipeline in non-blocking way
+            import concurrent.futures
+            import queue
+            
+            chunk_queue = queue.Queue()
+            full_output = ""
+            files = []
+            
+            def run_pipeline():
+                """Run blocking pipeline in separate thread"""
+                try:
+                    for chunk in ui_to_react_pipeline_streaming(
+                        [file_content],
+                        additional_context or "",
+                        include_typescript,
+                        styling_approach
+                    ):
+                        chunk_queue.put(chunk)
+                    chunk_queue.put(None)  # Signal completion
+                except Exception as e:
+                    chunk_queue.put(("error", str(e)))
+            
+            # Start pipeline in thread
+            with concurrent.futures.ThreadPoolExecutor() as executor:
+                future = executor.submit(run_pipeline)
+                
+                # Stream chunks as they arrive
+                pipeline_done = False
+                while not pipeline_done:
+                    try:
+                        # Get chunk with timeout
+                        chunk = chunk_queue.get(timeout=1.0)
+                        
+                        if chunk is None:  # Completion signal
+                            pipeline_done = True
+                            break
+                        if isinstance(chunk, tuple) and chunk[0] == "error":
+                            raise Exception(chunk[1])
+                        
+                        # Stream all chunks including progress messages
+                        if chunk:
+                            yield format_sse({
+                                "type": "stream",
+                                "content": chunk,
+                                "partial": True
+                            })
+                            full_output += chunk
+                    except queue.Empty:
+                        # Check if pipeline thread is still running
+                        if future.done():
+                            # Pipeline finished, check for remaining chunks
+                            try:
+                                while True:
+                                    chunk = chunk_queue.get_nowait()
+                                    if chunk is None:
+                                        pipeline_done = True
+                                        break
+                                    if isinstance(chunk, tuple) and chunk[0] == "error":
+                                        raise Exception(chunk[1])
+                                    if chunk:
+                                        yield format_sse({
+                                            "type": "stream",
+                                            "content": chunk,
+                                            "partial": True
+                                        })
+                                        full_output += chunk
+                            except queue.Empty:
+                                pipeline_done = True
+                                break
+                        else:
+                            # No chunk yet, yield control briefly
+                            await asyncio.sleep(0.001)
+                            continue
+            
+            # Extract files from the generated output
+            files = extract_react_files(full_output)
+            
+            if not files:
+                yield format_sse({
+                    "type": "error",
+                    "message": "⚠️ No files extracted from generated code. Please try again."
+                })
+                return
+            
+            # Send file previews
+            for filepath, content in files[:15]:
+                preview = content[:1000] + ("..." if len(content) > 1000 else "")
+                yield format_sse({
+                    "type": "file",
+                    "filename": filepath,
+                    "preview": preview,
+                    "size": len(content)
+                })
+            
+            if len(files) > 15:
+                yield format_sse({
+                    "type": "info",
+                    "message": f"... and {len(files) - 15} more files"
+                })
+            
+            # Create ZIP file
+            zip_buffer = create_project_zip(files)
+            zip_bytes = zip_buffer.getvalue()
+            
+            _generated_projects[project_id] = {
+                "zip_bytes": zip_bytes,
+                "created_at": datetime.now().isoformat(),
+                "arch_type": "Frontend",
+            }
+            
+            yield format_sse({
+                "type": "complete",
+                "project_id": project_id,
+                "files_count": len(files),
+                "download_url": f"/frontend/download/{project_id}",
+                "message": f"🎉 Frontend generation complete! {len(files)} files generated using Ollama."
+            })
+            
+        except Exception as e:
+            import traceback
+            error_trace = traceback.format_exc()
+            yield format_sse({
+                "type": "error",
+                "message": f"❌ Ollama UI to Frontend Error: {str(e)}"
+            })
+    
+    return StreamingResponse(
+        generate_and_stream(),
+        media_type="text/event-stream",
+        headers={
+            "Cache-Control": "no-cache",
+            "Connection": "keep-alive",
+            "X-Accel-Buffering": "no"
+        }
+    )
+
+
+@router.post("/ollama/generate-react-multi-stream", summary="🎨 Generate Multi-Screen React App from UI images using Ollama (streaming)")
+async def generate_multi_screen_react_ollama_stream(
+    files: List[UploadFile] = File(..., description="Multiple UI design image files"),
+    additional_context: Optional[str] = Form(None, description="Additional context or instructions"),
+    include_typescript: bool = Form(True, description="Include TypeScript"),
+    styling_approach: str = Form("tailwind", description="Styling approach (tailwind or css-modules)")
+):
+    """
+    🎨 Ollama-based: Generate multi-screen React app from multiple UI images with live streaming!
+    
+    Uses Ollama local models for both UI analysis and code generation.
+    """
+    if not files or len(files) == 0:
+        raise HTTPException(
+            status_code=400,
+            detail="At least one image file is required"
+        )
+    
+    if len(files) > 20:
+        raise HTTPException(
+            status_code=400,
+            detail="Maximum 20 screens allowed per project"
+        )
+    
+    # Validate all files
+    allowed_types = ["image/png", "image/jpeg", "image/jpg", "image/gif", "image/bmp"]
+    max_size = 10 * 1024 * 1024  # 10MB per file
+    
+    image_data_list = []
+    
+    try:
+        for idx, file in enumerate(files):
+            if file.content_type not in allowed_types:
+                raise HTTPException(
+                    status_code=400,
+                    detail=f"Unsupported file type for file {idx + 1}: {file.content_type}"
+                )
+            
+            file_content = await file.read()
+            if len(file_content) > max_size:
+                raise HTTPException(
+                    status_code=400,
+                    detail=f"File {idx + 1} is too large. Maximum size is 10MB per file"
+                )
+            
+            image_data_list.append(file_content)
+        
+        project_id = str(uuid.uuid4())
+        
+        async def generate_and_stream():
+            try:
+                from ui_to_frontend_ollama import ui_to_react_pipeline_streaming, extract_react_files, create_project_zip
+                
+                yield format_sse({
+                    "type": "start",
+                    "project_id": project_id,
+                    "message": f"🎨 Starting multi-screen analysis with Ollama ({len(image_data_list)} screens)..."
+                })
+                
+                # Run pipeline in non-blocking way
+                chunk_queue = queue.Queue()
+                full_output = ""
+                
+                def run_pipeline():
+                    """Run blocking pipeline in separate thread"""
+                    try:
+                        for chunk in ui_to_react_pipeline_streaming(
+                            image_data_list,
+                            additional_context or "",
+                            include_typescript,
+                            styling_approach
+                        ):
+                            chunk_queue.put(chunk)
+                        chunk_queue.put(None)  # Signal completion
+                    except Exception as e:
+                        chunk_queue.put(("error", str(e)))
+                
+                # Start pipeline in thread
+                with concurrent.futures.ThreadPoolExecutor() as executor:
+                    future = executor.submit(run_pipeline)
+                    
+                    # Stream chunks as they arrive
+                    pipeline_done = False
+                    while not pipeline_done:
+                        try:
+                            # Get chunk with timeout
+                            chunk = chunk_queue.get(timeout=1.0)
+                            
+                            if chunk is None:  # Completion signal
+                                pipeline_done = True
+                                break
+                            if isinstance(chunk, tuple) and chunk[0] == "error":
+                                raise Exception(chunk[1])
+                            
+                            # Stream ALL chunks including progress messages
+                            if chunk:
+                                yield format_sse({
+                                    "type": "stream",
+                                    "content": chunk,
+                                    "partial": True
+                                })
+                                full_output += chunk
+                        except queue.Empty:
+                            # Check if pipeline thread is still running
+                            if future.done():
+                                # Pipeline finished, check for remaining chunks
+                                try:
+                                    while True:
+                                        chunk = chunk_queue.get_nowait()
+                                        if chunk is None:
+                                            pipeline_done = True
+                                            break
+                                        if isinstance(chunk, tuple) and chunk[0] == "error":
+                                            raise Exception(chunk[1])
+                                        if chunk:
+                                            yield format_sse({
+                                                "type": "stream",
+                                                "content": chunk,
+                                                "partial": True
+                                            })
+                                            full_output += chunk
+                                except queue.Empty:
+                                    pipeline_done = True
+                                    break
+                            else:
+                                # No chunk yet, yield control briefly
+                                await asyncio.sleep(0.001)
+                                continue
+                
+                # Extract files
+                files_extracted = extract_react_files(full_output)
+                
+                if not files_extracted:
+                    yield format_sse({
+                        "type": "error",
+                        "message": "⚠️ No files extracted from generated code."
+                    })
+                    return
+                
+                # Send file previews
+                for filepath, content in files_extracted[:15]:
+                    preview = content[:1000] + ("..." if len(content) > 1000 else "")
+                    yield format_sse({
+                        "type": "file",
+                        "filename": filepath,
+                        "preview": preview,
+                        "size": len(content)
+                    })
+                
+                if len(files_extracted) > 15:
+                    yield format_sse({
+                        "type": "info",
+                        "message": f"... and {len(files_extracted) - 15} more files"
+                    })
+                
+                # Create ZIP
+                zip_buffer = create_project_zip(files_extracted)
+                zip_bytes = zip_buffer.getvalue()
+                
+                _generated_projects[project_id] = {
+                    "zip_bytes": zip_bytes,
+                    "created_at": datetime.now().isoformat(),
+                    "arch_type": "Frontend",
+                }
+                
+                yield format_sse({
+                    "type": "complete",
+                    "project_id": project_id,
+                    "files_count": len(files_extracted),
+                    "download_url": f"/frontend/download/{project_id}",
+                    "message": f"🎉 Multi-screen React app generated! {len(files_extracted)} files created using Ollama."
+                })
+                
+            except Exception as e:
+                yield format_sse({
+                    "type": "error",
+                    "message": f"❌ Ollama Multi-Screen Error: {str(e)}"
+                })
+        
+        return StreamingResponse(
+            generate_and_stream(),
+            media_type="text/event-stream",
+            headers={
+                "Cache-Control": "no-cache",
+                "Connection": "keep-alive",
+                "X-Accel-Buffering": "no"
+            }
+        )
+        
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Error: {str(e)}")
+
+
 @router.get("/health")
 async def health_check():
     """
@@ -916,7 +1479,8 @@ async def health_check():
             "Tailwind CSS support",
             "Multi-screen app generation",
             "React Router integration",
-            "AI-powered code generation (LangGraph agent)"
+            "AI-powered code generation (LangGraph agent)",
+            "Ollama local models support"
         ],
         "endpoints": {
             "regular": [
@@ -927,7 +1491,11 @@ async def health_check():
             ],
             "ai_agent": [
                 "/frontend/agent/generate-react"
-        ]
+            ],
+            "ollama": [
+                "/frontend/ollama/generate-react-stream",
+                "/frontend/ollama/generate-react-multi-stream"
+            ]
         }
     }
 

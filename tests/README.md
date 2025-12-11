@@ -22,12 +22,20 @@ Comprehensive test suite covering all 108 test cases from the testing documentat
    uvicorn main:app --host 127.0.0.1 --port 8000
    ```
 
-2. **API Key**: Set `GEMINI_API_KEY` environment variable
+2. **Gemini CLI**: Install and authenticate Gemini CLI (required for tests)
    ```bash
-   export GEMINI_API_KEY=your_api_key_here
-   # or create .env file
-   echo "GEMINI_API_KEY=your_api_key_here" > .env
+   # Install Gemini CLI
+   npm install -g @google/generative-ai-cli
+   
+   # Authenticate (uses OAuth, better quotas than API key)
+   gemini-cli auth login
+   
+   # Verify installation
+   gemini-cli --version
    ```
+   
+   Note: Tests now use Gemini CLI instead of API key for better quotas and OAuth authentication.
+   The CLI is auto-detected and will be used if available.
 
 3. **Dependencies**: Install test dependencies
    ```bash
@@ -101,15 +109,16 @@ The test suite includes several fixtures in `conftest.py`:
 - `large_image_file`: Large image for performance testing
 - `sample_backend_zip`: Sample backend ZIP for testing
 - `check_server_running`: Check if server is running
-- `check_api_key`: Check if API key is set
-- `skip_if_no_api_key`: Skip test if API key not set
+- `check_gemini_cli`: Check if Gemini CLI is installed and available
+- `skip_if_no_api_key`: Skip test if Gemini CLI not available (backward compatible)
+- `skip_if_no_gemini_cli`: Skip test if Gemini CLI not available
 - `skip_if_server_down`: Skip test if server not running
 
 ## Test Execution Notes
 
 1. **Skipped Tests**: Some tests may be skipped if:
    - Server is not running (tests will skip automatically)
-   - API key is not set (tests requiring AI will skip)
+   - Gemini CLI is not installed/authenticated (tests requiring AI will skip)
    - Endpoints are not implemented (marked with `pytest.skip`)
 
 2. **Timeout**: Tests have a default timeout of 300 seconds (5 minutes) for AI operations
@@ -122,7 +131,7 @@ The test suite includes several fixtures in `conftest.py`:
 
 All 108 test cases should pass when:
 - Server is running correctly
-- API key is configured
+- Gemini CLI is installed and authenticated
 - All endpoints are implemented
 - Network connectivity is available
 
@@ -134,10 +143,13 @@ Error: Cannot connect to server
 Solution: Start the server with `python3 main.py`
 ```
 
-### API Key Missing
+### Gemini CLI Not Available
 ```
-Warning: GEMINI_API_KEY not set
-Solution: Set the environment variable or create .env file
+Warning: Gemini CLI not available
+Solution: Install and authenticate:
+  npm install -g @google/generative-ai-cli
+  gemini-cli auth login
+  gemini-cli --version  # Verify installation
 ```
 
 ### Tests Timing Out

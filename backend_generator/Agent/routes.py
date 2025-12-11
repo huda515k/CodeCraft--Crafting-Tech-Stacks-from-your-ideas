@@ -1,11 +1,24 @@
 from fastapi import APIRouter, HTTPException, UploadFile, File, Depends, Form
-from fastapi.responses import FileResponse
+from fastapi.responses import FileResponse, StreamingResponse
 from typing import Optional
 import os
 import base64
+import json
+import uuid
+import asyncio
+import zipfile
+import tempfile
+from datetime import datetime
 from .langgraph_agent import LangGraphCodeCraftAgent
 
 router = APIRouter(prefix="/agent", tags=["🤖 LangGraph AI Agent"])
+
+# Temporary storage for generated files (in production, use Redis or database)
+_generated_projects = {}
+
+def format_sse(data: dict) -> str:
+    """Format data as Server-Sent Events."""
+    return f"data: {json.dumps(data)}\n\n"
 
 # Initialize the LangGraph agent
 agent = None
@@ -20,7 +33,142 @@ def get_langgraph_agent():
         agent = LangGraphCodeCraftAgent(gemini_api_key)
     return agent
 
-@router.post("/upload-erd", summary="🤖 Upload ERD and Generate Complete Backend")
+@router.post("/upload-erd-stream", summary="🤖 Upload ERD and Generate Complete Backend (Streaming)")
+async def upload_erd_and_generate_backend_stream(
+    file: UploadFile = File(..., description="ERD image file"),
+    additional_context: Optional[str] = Form(None, description="Additional context or requirements"),
+    agent_instance: LangGraphCodeCraftAgent = Depends(get_langgraph_agent)
+):
+    """
+    🤖 LangGraph AI Agent: Upload ERD and get complete Node.js backend with live streaming!
+    
+    This endpoint provides a seamless workflow with real-time progress updates:
+    1. Upload your ERD image
+    2. AI analyzes and extracts schema (streamed)
+    3. Automatically generates Node.js backend (streamed)
+    4. Downloads complete project as ZIP
+    
+    Returns Server-Sent Events (SSE) stream with live code generation.
+    """
+    project_id = str(uuid.uuid4())
+    
+    async def generate_and_stream():
+        try:
+            # Send initial message
+            yield format_sse({
+                "type": "start",
+                "project_id": project_id,
+                "message": "🤖 Starting ERD analysis and backend generation..."
+            })
+            
+            # Read and encode the image
+            content = await file.read()
+            image_data = base64.b64encode(content).decode('utf-8')
+            
+            yield format_sse({
+                "type": "info",
+                "message": "📤 ERD image uploaded. Analyzing with AI..."
+            })
+            
+            # Process with LangGraph agent
+            result = await agent_instance.process_erd_to_backend(
+                image_data=image_data,
+                additional_context=additional_context
+            )
+            
+            if result["success"]:
+                yield format_sse({
+                    "type": "info",
+                    "message": "✅ ERD analyzed successfully! Generating backend code..."
+                })
+                
+                # Stream backend generation progress
+                if result.get("backend_zip_path") and os.path.exists(result["backend_zip_path"]):
+                    zip_path = result["backend_zip_path"]
+                    filename = os.path.basename(zip_path)
+                    
+                    # Read the zip file and extract files for preview
+                    try:
+                        with zipfile.ZipFile(zip_path, 'r') as z:
+                            file_list = z.namelist()
+                            yield format_sse({
+                                "type": "info",
+                                "message": f"📦 Generated {len(file_list)} files in backend project"
+                            })
+                            
+                            # Stream file previews (first 10 files)
+                            for i, file_name in enumerate(file_list[:10]):
+                                try:
+                                    file_content = z.read(file_name).decode('utf-8', errors='ignore')
+                                    preview = file_content[:1000] + ("..." if len(file_content) > 1000 else "")
+                                    yield format_sse({
+                                        "type": "file",
+                                        "filename": file_name,
+                                        "preview": preview,
+                                        "size": len(file_content)
+                                    })
+                                except:
+                                    pass
+                            
+                            if len(file_list) > 10:
+                                yield format_sse({
+                                    "type": "info",
+                                    "message": f"... and {len(file_list) - 10} more files"
+                                })
+                    except Exception as e:
+                        yield format_sse({
+                            "type": "info",
+                            "message": f"📦 Backend project generated successfully"
+                        })
+                    
+                    # Read zip file bytes
+                    with open(zip_path, 'rb') as f:
+                        zip_bytes = f.read()
+                    
+                    _generated_projects[project_id] = {
+                        "zip_bytes": zip_bytes,
+                        "created_at": datetime.now().isoformat(),
+                        "arch_type": "Backend",
+                    }
+                    
+                    yield format_sse({
+                        "type": "complete",
+                        "project_id": project_id,
+                        "files_count": len(file_list) if 'file_list' in locals() else 0,
+                        "download_url": f"/agent/download/{project_id}",
+                        "message": f"🎉 Backend generation complete! {len(file_list) if 'file_list' in locals() else 0} files generated."
+                    })
+                else:
+                    yield format_sse({
+                        "type": "error",
+                        "message": "🤖 AI Agent: Backend generation completed but file not found"
+                    })
+            else:
+                # Provide more helpful error messages
+                error_msg = result.get('error_message', 'Unknown error')
+                yield format_sse({
+                    "type": "error",
+                    "message": f"❌ {error_msg}"
+                })
+            
+        except Exception as e:
+            yield format_sse({
+                "type": "error",
+                "message": f"🤖 AI Agent Error: {str(e)}"
+            })
+    
+    return StreamingResponse(
+        generate_and_stream(),
+        media_type="text/event-stream",
+        headers={
+            "Cache-Control": "no-cache",
+            "Connection": "keep-alive",
+            "X-Accel-Buffering": "no"
+        }
+    )
+
+
+@router.post("/upload-erd", summary="🤖 Upload ERD and Generate Complete Backend (Legacy - returns ZIP directly)")
 async def upload_erd_and_generate_backend(
     file: UploadFile = File(..., description="ERD image file"),
     additional_context: Optional[str] = Form(None, description="Additional context or requirements"),
@@ -36,6 +184,7 @@ async def upload_erd_and_generate_backend(
     4. Downloads complete project as ZIP
     
     No manual steps required - the AI agent handles everything!
+    For streaming preview, use /upload-erd-stream instead.
     """
     try:
         # Read and encode the image
@@ -173,6 +322,27 @@ async def get_agent_capabilities():
             "Production-ready code"
         ]
     }
+
+@router.get("/download/{project_id}", summary="Download generated backend ZIP file")
+async def download_project(project_id: str):
+    """
+    Download the generated backend ZIP file using the project_id from streaming endpoint.
+    """
+    if project_id not in _generated_projects:
+        raise HTTPException(status_code=404, detail="Project not found or expired")
+    
+    project = _generated_projects[project_id]
+    zip_bytes = project["zip_bytes"]
+    
+    from fastapi.responses import Response
+    return Response(
+        content=zip_bytes,
+        media_type="application/zip",
+        headers={
+            "Content-Disposition": f"attachment; filename=backend_{project_id[:8]}.zip"
+        }
+    )
+
 
 @router.get("/status", summary="🤖 Get AI Agent Status")
 async def get_agent_status():

@@ -13,7 +13,7 @@ export const api = {
     formData.append('file', file);
     formData.append('arch_type', archType);
 
-    // Use streaming endpoint for real-time code preview
+    // Use streaming endpoint for real-time code preview (now using llmbackend)
     const response = await fetch(`${API_BASE_URL}/nodegen/frontend-to-backend-stream`, {
       method: 'POST',
       body: formData,
@@ -32,6 +32,7 @@ export const api = {
     formData.append('prompt', prompt);
     formData.append('arch_type', archType);
 
+    // Use streaming endpoint (now using llmbackend)
     const response = await fetch(`${API_BASE_URL}/nodegen/prompt-to-backend-stream`, {
       method: 'POST',
       body: formData,
@@ -45,6 +46,42 @@ export const api = {
     return response;
   },
 
+  async generatePromptToFrontend(prompt: string) {
+    const formData = new FormData();
+    formData.append('prompt', prompt);
+
+    // Use streaming endpoint (using llmbackend)
+    const response = await fetch(`${API_BASE_URL}/nodegen/prompt-to-frontend-stream`, {
+      method: 'POST',
+      body: formData,
+    });
+
+    if (!response.ok) {
+      const errorText = await response.text();
+      throw new ApiError(response.status, errorText || 'Failed to generate frontend');
+    }
+
+    return response;
+  },
+
+  async generateBackendToFrontend(file: File) {
+    const formData = new FormData();
+    formData.append('file', file);
+
+    // Use streaming endpoint (using llmbackend)
+    const response = await fetch(`${API_BASE_URL}/nodegen/backend-to-frontend-stream`, {
+      method: 'POST',
+      body: formData,
+    });
+
+    if (!response.ok) {
+      const errorText = await response.text();
+      throw new ApiError(response.status, errorText || 'Failed to generate frontend from backend');
+    }
+
+    return response;
+  },
+
   async generateERDToBackend(file: File, additionalContext?: string) {
     const formData = new FormData();
     formData.append('file', file);
@@ -52,7 +89,8 @@ export const api = {
       formData.append('additional_context', additionalContext);
     }
 
-    const response = await fetch(`${API_BASE_URL}/agent/upload-erd`, {
+    // Use streaming endpoint for real-time code preview
+    const response = await fetch(`${API_BASE_URL}/agent/upload-erd-stream`, {
       method: 'POST',
       body: formData,
     });
@@ -83,17 +121,16 @@ export const api = {
       );
     }
 
-    // Use Claude agent endpoint for multiple UI images
+    // Use Ollama-based endpoint for multiple UI images
     const formData = new FormData();
     files.forEach((file) => formData.append('files', file));
     if (additionalContext) {
       formData.append('additional_context', additionalContext);
     }
-    formData.append('project_name', 'multi-screen-app');
     formData.append('include_typescript', includeTypeScript.toString());
     formData.append('styling_approach', stylingApproach);
 
-    const response = await fetch(`${API_BASE_URL}/frontend/claudeAgent/Multiple_ui_to_React`, {
+    const response = await fetch(`${API_BASE_URL}/frontend/ollama/generate-react-multi-stream`, {
       method: 'POST',
       body: formData,
     });
@@ -113,18 +150,16 @@ export const api = {
     stylingApproach: string = 'css-modules',
     includeTypeScript: boolean = true
   ) {
-    // Use AI agent endpoint for single UI image
+    // Use Ollama-based streaming endpoint for real-time code preview
     const formData = new FormData();
     formData.append('file', file);
     if (additionalContext) {
       formData.append('additional_context', additionalContext);
     }
-    formData.append('project_name', 'react-app');
-    formData.append('framework', framework);
     formData.append('styling_approach', stylingApproach);
     formData.append('include_typescript', includeTypeScript.toString());
 
-    const response = await fetch(`${API_BASE_URL}/frontend/agent/generate-react`, {
+    const response = await fetch(`${API_BASE_URL}/frontend/ollama/generate-react-stream`, {
       method: 'POST',
       body: formData,
     });
@@ -137,8 +172,17 @@ export const api = {
     return response;
   },
 
-  async downloadProject(projectId: string) {
-    const response = await fetch(`${API_BASE_URL}/nodegen/download/${projectId}`, {
+  async downloadProject(projectId: string, moduleType?: string) {
+    // Determine the correct download endpoint based on module type
+    let downloadUrl = `${API_BASE_URL}/nodegen/download/${projectId}`;
+    
+    if (moduleType === 'erd-to-backend') {
+      downloadUrl = `${API_BASE_URL}/agent/download/${projectId}`;
+    } else if (moduleType === 'ui-to-frontend') {
+      downloadUrl = `${API_BASE_URL}/frontend/download/${projectId}`;
+    }
+    
+    const response = await fetch(downloadUrl, {
       method: 'GET',
     });
 

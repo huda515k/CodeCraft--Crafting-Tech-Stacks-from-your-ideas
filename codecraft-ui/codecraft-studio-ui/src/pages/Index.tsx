@@ -198,27 +198,86 @@ export default function Index() {
         if (!files || files.length === 0) {
           throw new Error('Please upload at least one UI image');
         }
-        const fileList = files.map(f => f.file);
-        response = await api.generateUIToFrontend(fileList, content);
-        const blob = await response.blob();
-        const url = URL.createObjectURL(blob);
-        setDownloadUrl(url);
-        
-        // Extract and display code from ZIP
-        try {
-          const extractedFiles = await extractZipFiles(blob);
-          setGeneratedCode(extractedFiles.map(file => ({
-            filename: file.filename,
-            language: file.language,
-            content: file.content,
-          })));
-        } catch (extractError) {
-          console.error('Error extracting ZIP:', extractError);
-          setGeneratedCode([{
-            filename: 'project.zip',
-            language: 'text',
-            content: 'Frontend code generated successfully! Download the ZIP file to view all files.',
-          }]);
+        // For single file, use streaming endpoint
+        if (files.length === 1) {
+          const fileList = files.map(f => f.file);
+          response = await api.generateUIToFrontend(fileList, content);
+          const reader = response.body?.getReader();
+          const decoder = new TextDecoder();
+          let buffer = '';
+          let fullCode = '';
+
+          if (!reader) throw new Error('Failed to get response stream');
+
+          while (true) {
+            const { done, value } = await reader.read();
+            if (done) break;
+
+            buffer += decoder.decode(value, { stream: true });
+            const lines = buffer.split('\n');
+            buffer = lines.pop() || '';
+
+            for (const line of lines) {
+              if (line.trim() && line.startsWith('data: ')) {
+                try {
+                  const data = JSON.parse(line.slice(6));
+                  if (data.type === 'stream' && data.content) {
+                    fullCode += data.content;
+                    const files = extractFilesFromCode(fullCode);
+                    setGeneratedCode(files);
+                  } else if (data.type === 'file') {
+                    setGeneratedCode(prev => {
+                      const exists = prev.find(f => f.filename === data.filename);
+                      if (exists) {
+                        return prev.map(f => 
+                          f.filename === data.filename 
+                            ? { ...f, content: data.preview || f.content }
+                            : f
+                        );
+                      } else {
+                        return [...prev, {
+                          filename: data.filename,
+                          language: data.filename.split('.').pop() || 'text',
+                          content: data.preview || '',
+                        }];
+                      }
+                    });
+                  } else if (data.type === 'complete') {
+                    setProjectId(data.project_id);
+                    setDownloadUrl(data.project_id);
+                  } else if (data.type === 'error') {
+                    throw new Error(data.message);
+                  }
+                } catch (e) {
+                  console.error('Error parsing SSE data:', e);
+                }
+              }
+            }
+          }
+        } else {
+          // For multiple files, use the existing multi-screen endpoint (non-streaming for now)
+          const fileList = files.map(f => f.file);
+          response = await api.generateUIToFrontend(fileList, content);
+          const blob = await response.blob();
+          const url = URL.createObjectURL(blob);
+          setDownloadUrl(url);
+          
+          // Extract and display code from ZIP
+          try {
+            const extractedFiles = await extractZipFiles(blob);
+            setGeneratedCode(extractedFiles.map(file => ({
+              filename: file.filename,
+              language: file.language,
+              content: file.content,
+            })));
+          } catch (extractError) {
+            console.error('Error extracting ZIP:', extractError);
+            setGeneratedCode([{
+              filename: 'project.zip',
+              language: 'text',
+              content: 'Frontend code generated successfully! Download the ZIP file to view all files.',
+            }]);
+          }
         }
       } else if (selectedModule === 'frontend-to-backend') {
         if (!files || files.length === 0) {
@@ -284,26 +343,172 @@ export default function Index() {
         if (!files || files.length === 0) {
           throw new Error('Please upload an ERD image');
         }
+        // Handle streaming response for ERD to backend
         response = await api.generateERDToBackend(files[0].file, content);
-        const blob = await response.blob();
-        const url = URL.createObjectURL(blob);
-        setDownloadUrl(url);
-        
-        // Extract and display code from ZIP
-        try {
-          const extractedFiles = await extractZipFiles(blob);
-          setGeneratedCode(extractedFiles.map(file => ({
-            filename: file.filename,
-            language: file.language,
-            content: file.content,
-          })));
-        } catch (extractError) {
-          console.error('Error extracting ZIP:', extractError);
-          setGeneratedCode([{
-            filename: 'project.zip',
-            language: 'text',
-            content: 'Backend code generated successfully! Download the ZIP file to view all files.',
-          }]);
+        const reader = response.body?.getReader();
+        const decoder = new TextDecoder();
+        let buffer = '';
+        let fullCode = '';
+
+        if (!reader) throw new Error('Failed to get response stream');
+
+        while (true) {
+          const { done, value } = await reader.read();
+          if (done) break;
+
+          buffer += decoder.decode(value, { stream: true });
+          const lines = buffer.split('\n');
+          buffer = lines.pop() || '';
+
+          for (const line of lines) {
+            if (line.trim() && line.startsWith('data: ')) {
+              try {
+                const data = JSON.parse(line.slice(6));
+                if (data.type === 'stream' && data.content) {
+                  fullCode += data.content;
+                  const files = extractFilesFromCode(fullCode);
+                  setGeneratedCode(files);
+                } else if (data.type === 'file') {
+                  setGeneratedCode(prev => {
+                    const exists = prev.find(f => f.filename === data.filename);
+                    if (exists) {
+                      return prev.map(f => 
+                        f.filename === data.filename 
+                          ? { ...f, content: data.preview || f.content }
+                          : f
+                      );
+                    } else {
+                      return [...prev, {
+                        filename: data.filename,
+                        language: data.filename.split('.').pop() || 'text',
+                        content: data.preview || '',
+                      }];
+                    }
+                  });
+                } else if (data.type === 'complete') {
+                  setProjectId(data.project_id);
+                  setDownloadUrl(data.project_id);
+                } else if (data.type === 'error') {
+                  throw new Error(data.message);
+                }
+              } catch (e) {
+                console.error('Error parsing SSE data:', e);
+              }
+            }
+          }
+        }
+      } else if (selectedModule === 'prompt-to-frontend') {
+        // Handle streaming response for prompt to frontend
+        response = await api.generatePromptToFrontend(content);
+        const reader = response.body?.getReader();
+        const decoder = new TextDecoder();
+        let buffer = '';
+        let fullCode = '';
+
+        if (!reader) throw new Error('Failed to get response stream');
+
+        while (true) {
+          const { done, value } = await reader.read();
+          if (done) break;
+
+          buffer += decoder.decode(value, { stream: true });
+          const lines = buffer.split('\n');
+          buffer = lines.pop() || '';
+
+          for (const line of lines) {
+            if (line.trim() && line.startsWith('data: ')) {
+              try {
+                const data = JSON.parse(line.slice(6));
+                if (data.type === 'stream' && data.content) {
+                  fullCode += data.content;
+                  const files = extractFilesFromCode(fullCode);
+                  setGeneratedCode(files);
+                } else if (data.type === 'file') {
+                  setGeneratedCode(prev => {
+                    const exists = prev.find(f => f.filename === data.filename);
+                    if (exists) {
+                      return prev.map(f => 
+                        f.filename === data.filename 
+                          ? { ...f, content: data.preview || f.content }
+                          : f
+                      );
+                    } else {
+                      return [...prev, {
+                        filename: data.filename,
+                        language: data.filename.split('.').pop() || 'text',
+                        content: data.preview || '',
+                      }];
+                    }
+                  });
+                } else if (data.type === 'complete') {
+                  setProjectId(data.project_id);
+                  setDownloadUrl(data.project_id);
+                } else if (data.type === 'error') {
+                  throw new Error(data.message);
+                }
+              } catch (e) {
+                console.error('Error parsing SSE data:', e);
+              }
+            }
+          }
+        }
+      } else if (selectedModule === 'backend-to-frontend') {
+        if (!files || files.length === 0) {
+          throw new Error('Please upload a backend ZIP file');
+        }
+        // Handle streaming response for backend to frontend
+        response = await api.generateBackendToFrontend(files[0].file);
+        const reader = response.body?.getReader();
+        const decoder = new TextDecoder();
+        let buffer = '';
+        let fullCode = '';
+
+        if (!reader) throw new Error('Failed to get response stream');
+
+        while (true) {
+          const { done, value } = await reader.read();
+          if (done) break;
+
+          buffer += decoder.decode(value, { stream: true });
+          const lines = buffer.split('\n');
+          buffer = lines.pop() || '';
+
+          for (const line of lines) {
+            if (line.trim() && line.startsWith('data: ')) {
+              try {
+                const data = JSON.parse(line.slice(6));
+                if (data.type === 'stream' && data.content) {
+                  fullCode += data.content;
+                  const files = extractFilesFromCode(fullCode);
+                  setGeneratedCode(files);
+                } else if (data.type === 'file') {
+                  setGeneratedCode(prev => {
+                    const exists = prev.find(f => f.filename === data.filename);
+                    if (exists) {
+                      return prev.map(f => 
+                        f.filename === data.filename 
+                          ? { ...f, content: data.preview || f.content }
+                          : f
+                      );
+                    } else {
+                      return [...prev, {
+                        filename: data.filename,
+                        language: data.filename.split('.').pop() || 'text',
+                        content: data.preview || '',
+                      }];
+                    }
+                  });
+                } else if (data.type === 'complete') {
+                  setProjectId(data.project_id);
+                  setDownloadUrl(data.project_id);
+                } else if (data.type === 'error') {
+                  throw new Error(data.message);
+                }
+              } catch (e) {
+                console.error('Error parsing SSE data:', e);
+              }
+            }
+          }
         }
       } else {
         // Placeholder for other modules
@@ -347,8 +552,8 @@ export default function Index() {
     if (downloadUrl || projectId) {
       try {
         if (projectId) {
-          // Backend download endpoint
-          const response = await api.downloadProject(projectId);
+          // Backend download endpoint - use module type to determine correct endpoint
+          const response = await api.downloadProject(projectId, selectedModule);
           const blob = await response.blob();
           const url = URL.createObjectURL(blob);
           const link = document.createElement('a');
@@ -385,7 +590,7 @@ export default function Index() {
         variant: "destructive",
       });
     }
-  }, [downloadUrl, projectId, toast]);
+  }, [downloadUrl, projectId, selectedModule, toast]);
 
   return (
     <div className="h-screen flex flex-col bg-background overflow-hidden">
